@@ -1,0 +1,343 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import type { Exercise, UserData } from '@/lib/domain/types'
+import {
+  addExercise,
+  addSet,
+  completedSetCount,
+  finishWorkout,
+  moveExercise,
+  removeExercise,
+  removeSet,
+  restFor,
+  startWorkout,
+  toggleDone,
+  updateSet,
+  type ActiveWorkout,
+  type WorkoutItem,
+} from '@/lib/domain/workout'
+import { detectPRs, suggestNext, type PR } from '@/lib/domain/history'
+import { sessionVolume, workingSetCount } from '@/lib/domain/metrics'
+import { createTimer } from '@/lib/domain/timer'
+import { displayWeight, formatDuration } from '@/lib/domain/units'
+import { unlockAudio } from '@/lib/alarm'
+import { appStore, useApp, useT } from '@/lib/store/use-app'
+import { ExercisePicker } from '../ExercisePicker'
+import { PlateCalculator } from '../PlateCalculator'
+import { Button, Card, Icon, PageHeader, Sheet, cx, inputClass } from '../ui'
+import { SetRow } from './SetRow'
+
+export function WorkoutView() {
+  const { t } = useT()
+  const router = useRouter()
+  const data = useApp((s) => s.data)
+  const workout = useApp((s) => s.workout)
+  const setWorkout = useApp((s) => s.setWorkout)
+  const setTimer = useApp((s) => s.setTimer)
+  const dispatch = useApp((s) => s.dispatch)
+  const [picker, setPicker] = useState(false)
+  const [summary, setSummary] = useState<{ prs: PR[]; sets: number; volume: number } | null>(null)
+
+  if (summary) {
+    return <FinishSummary {...summary} onClose={() => router.push('/')} />
+  }
+
+  if (!data) return null
+
+  if (!workout) {
+    return (
+      <div>
+        <PageHeader title={t('nav.workout')} />
+        <Card className="flex flex-col gap-2">
+          <Button variant="primary" size="lg" onClick={() => setWorkout(startWorkout(data))}>
+            {t('home.start')}
+          </Button>
+          <Button
+            size="lg"
+            onClick={() => setWorkout({ ...startWorkout(data), items: [] })}
+          >
+            {t('home.startEmpty')}
+          </Button>
+        </Card>
+      </div>
+    )
+  }
+
+  const update = (fn: (w: ActiveWorkout) => ActiveWorkout) => {
+    const current = appStore.getState().workout
+    if (current) setWorkout(fn(current))
+  }
+
+  const finish = async () => {
+    if (completedSetCount(workout) === 0) {
+      alert(t('workout.noSetsDone'))
+      return
+    }
+    const { session, sets } = finishWorkout(workout)
+    const history = data.sets.filter((s) => s.sessionId !== session.id)
+    const prs = data.exercises.flatMap((ex) => detectPRs(ex, history, sets))
+    setSummary({ prs, sets: workingSetCount(sets), volume: sessionVolume(sets) })
+    setWorkout(null)
+    setTimer(null)
+    await dispatch([{ type: 'upsertSession', session, sets }])
+  }
+
+  const discard = () => {
+    if (!confirm(t('workout.discardConfirm'))) return
+    setWorkout(null)
+    setTimer(null)
+    router.push(workout.editing ? '/calendar' : '/')
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title={workout.editing ? `${t('workout.editTitle')} · ${workout.date}` : t('workout.title')}
+        right={!workout.editing && <Elapsed since={workout.startedAt} />}
+      />
+
+      <div className="flex flex-col gap-3">
+        {workout.items.length === 0 && <p className="py-8 text-center text-ink-3">{t('workout.empty')}</p>}
+        {workout.items.map((item, idx) => (
+          <ExerciseCard
+            key={item.key}
+            item={item}
+            data={data}
+            workout={workout}
+            isFirst={idx === 0}
+            isLast={idx === workout.items.length - 1}
+            update={update}
+            onSetDone={(sec) => {
+              unlockAudio()
+              if (sec > 0) setTimer(createTimer(sec))
+            }}
+          />
+        ))}
+
+        <Button size="lg" onClick={() => setPicker(true)}>
+          <Icon name="plus" /> {t('workout.addExercise')}
+        </Button>
+
+        <textarea
+          className={cx(inputClass, 'h-20 py-2')}
+          placeholder={t('workout.note')}
+          aria-label={t('workout.note')}
+          value={workout.note}
+          onChange={(e) => update((w) => ({ ...w, note: e.target.value }))}
+        />
+
+        <div className="grid grid-cols-[auto_1fr] gap-2">
+          <Button variant="danger" size="lg" onClick={discard}>
+            {t('workout.discard')}
+          </Button>
+          <Button variant="primary" size="lg" onClick={finish}>
+            {t('workout.finish')} ({completedSetCount(workout)})
+          </Button>
+        </div>
+      </div>
+
+      <ExercisePicker
+        open={picker}
+        onClose={() => setPicker(false)}
+        onPick={(ex) => update((w) => addExercise(w, ex, data.sets))}
+      />
+    </div>
+  )
+}
+
+function ExerciseCard({
+  item,
+  data,
+  workout,
+  isFirst,
+  isLast,
+  update,
+  onSetDone,
+}: {
+  item: WorkoutItem
+  data: UserData
+  workout: ActiveWorkout
+  isFirst: boolean
+  isLast: boolean
+  update: (fn: (w: ActiveWorkout) => ActiveWorkout) => void
+  onSetDone: (restSec: number) => void
+}) {
+  const { t, exName, fmtW, unit } = useT()
+  const [plates, setPlates] = useState(false)
+  const exercise = data.exercises.find((e) => e.id === item.exerciseId)
+  const suggestion = useMemo(
+    () =>
+      exercise && item.targetReps && !workout.editing
+        ? suggestNext(exercise, data.sets, item.targetReps)
+        : undefined,
+    [exercise, item.targetReps, data.sets, workout.editing],
+  )
+  if (!exercise) return null
+
+  const labels = {
+    weight: exercise.type === 'bodyweight' ? `+${unit}` : unit,
+    reps: t('workout.reps'),
+    time: t('workout.time'),
+    distance: t('workout.distance'),
+    done: `${t('workout.set')} ✓`,
+    remove: t('common.delete'),
+    warmup: 'W',
+  }
+
+  const firstWeight = item.sets.find((s) => !s.done)?.weightKg ?? item.sets[0]?.weightKg
+
+  return (
+    <Card className={cx(item.supersetGroup && 'border-l-4 border-l-accent')}>
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="truncate font-semibold">{exName(exercise)}</h3>
+          <p className="text-xs text-ink-3">
+            {t(`part.${exercise.bodyPart}`)}
+            {item.supersetGroup && ` · ${t('workout.superset')}`}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center">
+          {exercise.type === 'weight' && (
+            <Button variant="ghost" size="sm" onClick={() => setPlates(true)}>
+              {t('workout.plates')}
+            </Button>
+          )}
+          <button type="button" disabled={isFirst} aria-label={t('common.up')} className="p-1.5 text-ink-3 disabled:opacity-30" onClick={() => update((w) => moveExercise(w, item.key, -1))}>
+            <Icon name="up" className="size-4" />
+          </button>
+          <button type="button" disabled={isLast} aria-label={t('common.down')} className="p-1.5 text-ink-3 disabled:opacity-30" onClick={() => update((w) => moveExercise(w, item.key, 1))}>
+            <Icon name="down" className="size-4" />
+          </button>
+          <button type="button" aria-label={t('common.delete')} className="p-1.5 text-ink-3" onClick={() => update((w) => removeExercise(w, item.key))}>
+            <Icon name="trash" className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-3 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-2">
+        {item.last ? (
+          <>
+            <span className="font-medium">{t('workout.last', { date: item.last.date.slice(5) })}</span>{' '}
+            <span className="tabular">
+              {item.last.sets
+                .filter((s) => !s.isWarmup)
+                .map((s) => describeSet(exercise, s, fmtW))
+                .join(', ')}
+            </span>
+          </>
+        ) : (
+          t('workout.noLast')
+        )}
+        {suggestion?.increased && (
+          <p className="mt-1 font-medium text-good">
+            {t('workout.suggest', { weight: fmtW(suggestion.weightKg), reps: suggestion.reps })}
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {item.sets.map((set, i) => (
+          <SetRow
+            key={set.id}
+            index={i}
+            set={set}
+            type={exercise.type}
+            unit={unit}
+            labels={labels}
+            onChange={(patch) => update((w) => updateSet(w, item.key, set.id, patch))}
+            onToggle={() => {
+              const willBeDone = !set.done
+              update((w) => toggleDone(w, item.key, set.id))
+              if (willBeDone) onSetDone(restFor(item, data.exercises, workout))
+            }}
+            onRemove={() => update((w) => removeSet(w, item.key, set.id))}
+          />
+        ))}
+      </div>
+      <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={() => update((w) => addSet(w, item.key))}>
+        <Icon name="plus" className="size-4" /> {t('workout.addSet')}
+      </Button>
+
+      <PlateCalculator
+        open={plates}
+        onClose={() => setPlates(false)}
+        initial={firstWeight ? Number(displayWeight(firstWeight, unit)) : undefined}
+      />
+    </Card>
+  )
+}
+
+export function describeSet(
+  exercise: Pick<Exercise, 'type'>,
+  s: { weightKg?: number; reps?: number; durationSec?: number; distanceKm?: number },
+  fmtW: (kg?: number) => string,
+): string {
+  switch (exercise.type) {
+    case 'weight':
+      return `${fmtW(s.weightKg)}×${s.reps ?? '-'}`
+    case 'bodyweight':
+      return s.weightKg ? `+${fmtW(s.weightKg)}×${s.reps ?? '-'}` : `${s.reps ?? '-'}`
+    case 'duration':
+      return s.durationSec !== undefined ? formatDuration(s.durationSec) : '-'
+    case 'cardio':
+      return [s.distanceKm !== undefined ? `${s.distanceKm}km` : '', s.durationSec !== undefined ? formatDuration(s.durationSec) : '']
+        .filter(Boolean)
+        .join(' / ')
+  }
+}
+
+function Elapsed({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const { t } = useT()
+  return (
+    <span className="flex items-center gap-1 text-sm text-ink-2 tabular">
+      <Icon name="timer" className="size-4" />
+      <span className="sr-only">{t('workout.elapsed')}</span>
+      {formatDuration((now - new Date(since).getTime()) / 1000)}
+    </span>
+  )
+}
+
+function FinishSummary({ prs, sets, volume, onClose }: { prs: PR[]; sets: number; volume: number; onClose: () => void }) {
+  const { t, exName, fmtW, fmtVol } = useT()
+  const exercises = useApp((s) => s.data?.exercises ?? [])
+  return (
+    <Sheet open onClose={onClose} title={t('workout.saved')}>
+      <p className="text-ink-2">{t('workout.summary', { sets, volume: fmtVol(volume) })}</p>
+      {prs.length > 0 && (
+        <div className="mt-4">
+          <h3 className="mb-2 flex items-center gap-2 font-semibold">
+            <Icon name="trophy" className="size-5 text-accent" /> {t('workout.prTitle')}
+          </h3>
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {prs.map((pr, i) => {
+              const ex = exercises.find((e) => e.id === pr.exerciseId)
+              const fmt = (v: number) =>
+                ex?.type === 'duration' ? formatDuration(v) : ex?.type === 'cardio' ? `${v}km` : ex?.type === 'bodyweight' ? String(v) : fmtW(v)
+              return (
+                <li key={i} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span>
+                    {exName(ex)} <span className="text-ink-3">· {t(`workout.pr.${pr.kind}`)}</span>
+                  </span>
+                  <span className="tabular">
+                    <span className="text-ink-3">{fmt(pr.previous)} → </span>
+                    <b>{fmt(pr.value)}</b>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+      <Button variant="primary" size="lg" className="mt-5 w-full" onClick={onClose}>
+        {t('common.close')}
+      </Button>
+    </Sheet>
+  )
+}
