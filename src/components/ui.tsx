@@ -116,18 +116,32 @@ export function Sheet({
   children: ReactNode
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  /** 정리(cleanup)로 닫을 때는 사용자가 닫은 게 아니므로 onClose를 부르지 않는다 */
+  const silent = useRef(false)
   useEffect(() => {
     const d = ref.current
     if (!d) return
+    silent.current = false
     if (open && !d.open) d.showModal?.()
     if (!open && d.open) d.close?.()
+    // Next는 떠난 페이지를 <Activity hidden>으로 DOM에 남긴다. 모달 <dialog>는 부모가 숨겨져도
+    // top layer에 남아 나머지 화면을 inert로 만들어 아무것도 클릭할 수 없게 되므로 반드시 닫는다.
+    return () => {
+      if (d.open) {
+        silent.current = true
+        d.close?.()
+      }
+    }
   }, [open])
   if (!open) return null
   return (
     <dialog
       ref={ref}
       open={typeof HTMLDialogElement === 'undefined' || !HTMLDialogElement.prototype.showModal ? true : undefined}
-      onClose={onClose}
+      onClose={() => {
+        if (silent.current) return
+        onClose()
+      }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
       aria-label={title}
       className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[85dvh] w-full max-w-none rounded-t-2xl border border-line bg-surface p-0 text-ink backdrop:bg-black/40 sm:inset-0 sm:m-auto sm:max-w-lg sm:rounded-2xl"

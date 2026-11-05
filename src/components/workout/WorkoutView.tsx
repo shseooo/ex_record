@@ -45,7 +45,15 @@ export function WorkoutView() {
   const [summary, setSummary] = useState<{ prs: PR[]; sets: number; volume: number } | null>(null)
 
   if (summary) {
-    return <FinishSummary {...summary} onClose={() => router.push('/')} />
+    return (
+      <FinishSummary
+        {...summary}
+        onClose={() => {
+          setSummary(null)
+          router.push('/')
+        }}
+      />
+    )
   }
 
   if (!data) return null

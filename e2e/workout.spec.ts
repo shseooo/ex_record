@@ -86,6 +86,13 @@ test('운동 시작 없이 바로 기록: 날짜 선택, 휴식 타이머 없음
 
   await page.getByRole('button', { name: /^저장/ }).click()
   await expect(page.getByRole('dialog')).toContainText('저장했습니다')
+
+  // 요약을 닫고 홈으로 돌아온 뒤에도 메뉴를 누를 수 있어야 한다 (모달이 화면을 막으면 안 됨)
+  await page.getByRole('dialog').getByRole('button', { name: '닫기' }).last().click()
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.locator('dialog[open]')).toHaveCount(0)
+  await nav(page, '달력')
+  await expect(page.getByRole('heading', { name: '달력' })).toBeVisible({ timeout: 3000 })
 })
 
 test('개인정보처리방침 페이지는 공개', async ({ page }) => {
