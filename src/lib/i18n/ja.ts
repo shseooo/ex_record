@@ -12,6 +12,7 @@ export const ja: Dict = {
   'login.title': 'トレーニング記録を自分のGoogleスプレッドシートに',
   'login.desc': '記録はGoogleドライブのスプレッドシートに保存されます。アプリは自身が作成したファイルにのみアクセスします。',
   'login.google': 'Googleで始める',
+  'login.dev': '開発用ログイン（メモリ保存）',
 
   'common.save': '保存',
   'common.cancel': 'キャンセル',

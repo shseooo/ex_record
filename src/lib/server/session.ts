@@ -39,7 +39,7 @@ const SESSION_COOKIE = /^(__Secure-)?authjs\.session-token(\.\d+)?=/
  * 같은 토큰을 다시 갱신하지 않는다. /api는 proxy를 거치지 않으므로 여기서 해야 한다.
  */
 export async function sessionToken(req: Request): Promise<{ token: JWT | null; setCookies: string[] }> {
-  // 메모리 백엔드/테스트에서는 next-auth 설정(@/auth)을 불러오지 않도록 지연 import
+  // 테스트에서 모듈을 불러올 때 next-auth 설정(@/auth)까지 끌려오지 않도록 지연 import
   const { auth } = await import('@/auth')
   const res = { headers: new Headers() }
   // { req, res } 형태로 부르면 Auth.js가 갱신된 세션 쿠키를 res.headers에 붙인다

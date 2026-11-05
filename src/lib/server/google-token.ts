@@ -15,6 +15,11 @@ interface Options {
 
 const SKEW_SEC = 60
 
+/** Google 로그인 세션 토큰인지 (개발 로그인 세션에는 Google 토큰이 없다) */
+export function hasGoogleToken<T extends Partial<GoogleTokenState>>(token: T): token is T & GoogleTokenState {
+  return typeof token.access_token === 'string' && typeof token.expires_at === 'number'
+}
+
 export async function ensureFreshToken<T extends GoogleTokenState>(
   token: T,
   {
@@ -24,6 +29,9 @@ export async function ensureFreshToken<T extends GoogleTokenState>(
     clientSecret = process.env.AUTH_GOOGLE_SECRET,
   }: Options = {},
 ): Promise<T> {
+  // 이미 갱신에 실패한 세션은 다시 시도하지 않는다 (expires_at이 그대로라 요청마다 Google을 다시 부르게 된다).
+  // 사용자는 proxy/API에서 로그인 페이지로 보내진다.
+  if (token.error) return token
   if (now / 1000 < token.expires_at - SKEW_SEC) return token
   if (!token.refresh_token) return { ...token, error: 'RefreshTokenError' }
 

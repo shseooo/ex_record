@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# playwright 세션 상태 (global-setup이 생성)
+/e2e/.auth/
+
 # vercel
 .vercel
 

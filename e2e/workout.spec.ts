@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
 
-test.beforeEach(async ({ request }) => {
-  expect((await request.post('/api/test-reset')).status()).toBe(204)
+// 로그인한 사용자 본인의 메모리 저장소를 초기화한다 (page.request는 브라우저 쿠키를 공유한다)
+test.beforeEach(async ({ page }) => {
+  expect((await page.request.post('/api/test-reset')).status()).toBe(204)
 })
 
 const nav = (page: Page, name: string) =>

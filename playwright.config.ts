@@ -1,21 +1,22 @@
 import { defineConfig, devices } from '@playwright/test'
-
-const PORT = 3100
+import { AUTH_SECRET, BASE_URL, PORT, STORAGE_STATE } from './e2e/env'
 
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
-  use: { baseURL: `http://localhost:${PORT}`, trace: 'retain-on-failure' },
+  globalSetup: './e2e/global-setup.ts',
+  // 테스트용 세션 쿠키로 로그인한 상태에서 시작한다 (global-setup.ts)
+  use: { baseURL: BASE_URL, trace: 'retain-on-failure', storageState: STORAGE_STATE },
   projects: [
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
-    // Google 없이 메모리 저장소로 실행 (production 배포에서는 무시됨)
+    // 인증은 production과 같고, 저장소만 메모리 (Google 없이 실행)
     command: `npm run build && npx next start -p ${PORT}`,
-    url: `http://localhost:${PORT}/login`,
+    url: `${BASE_URL}/login`,
     timeout: 180_000,
     reuseExistingServer: false,
     env: {
@@ -24,7 +25,7 @@ export default defineConfig({
       ALLOW_MEMORY_BACKEND_IN_PRODUCTION: '1',
       // next start는 production이라 Auth.js가 기본으로 호스트를 신뢰하지 않음 (UntrustedHost)
       AUTH_TRUST_HOST: '1',
-      AUTH_SECRET: 'e2e-secret-e2e-secret-e2e-secret-00',
+      AUTH_SECRET,
     },
   },
 })

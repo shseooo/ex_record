@@ -44,13 +44,15 @@ npm install
 npm run dev
 ```
 
-Google 없이 UI만 확인하려면 `.env.local`에 `DATA_BACKEND=memory`를 넣습니다. 로그인을 건너뛰고 메모리 저장소를 쓰며, Vercel production 환경에서는 무시되고, production 빌드(`next start`)에서는 `ALLOW_MEMORY_BACKEND_IN_PRODUCTION=1`도 함께 줘야 켜집니다. 이때 `localhost` 같은 호스트에서 Auth.js가 `UntrustedHost` 에러를 내지 않도록 `AUTH_TRUST_HOST=1`도 넣습니다.
+Google 없이 UI만 확인하려면 `.env.local`에 `DATA_BACKEND=memory`를 넣습니다(`AUTH_SECRET`은 계속 필요). 저장소만 사용자별 메모리 저장소로 바뀌고 인증은 그대로이므로, 로그인 화면의 **개발용 로그인** 버튼으로 로그인합니다. 이 버튼과 개발 로그인 세션은 메모리 백엔드에서만 유효합니다.
+
+메모리 백엔드는 Vercel production 환경에서는 무시되고, production 빌드(`next start`)에서는 `ALLOW_MEMORY_BACKEND_IN_PRODUCTION=1`도 함께 줘야 켜집니다. 이때 `localhost` 같은 호스트에서 Auth.js가 `UntrustedHost` 에러를 내지 않도록 `AUTH_TRUST_HOST=1`도 넣습니다.
 
 ## 테스트 (TDD)
 
 ```bash
 npm test            # Vitest: 도메인 로직, 시트 직렬화/저장소, 동기화 큐, API, 컴포넌트
-npm run test:e2e    # Playwright: 메모리 백엔드로 빌드 후 모바일/데스크톱 흐름 테스트
+npm run test:e2e    # Playwright: 메모리 저장소로 빌드 후, 테스트용 세션 쿠키로 로그인해 모바일/데스크톱 흐름 테스트
 ```
 
 | 위치 | 내용 |

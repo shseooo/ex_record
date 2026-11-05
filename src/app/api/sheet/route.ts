@@ -1,15 +1,18 @@
 import { connection } from 'next/server'
 import { isMemoryBackend } from '@/lib/server/backend'
-import { withCookies } from '@/lib/server/http'
-import { sessionToken } from '@/lib/server/session'
+import { errorResponse, withCookies } from '@/lib/server/http'
+import { requireSession } from '@/lib/server/repo'
 
 export async function GET(req: Request) {
   await connection() // 사용자별 데이터: 항상 요청 시점에 실행
-  if (isMemoryBackend) return Response.json({ url: null })
-  const { token, setCookies } = await sessionToken(req)
-  if (!token?.spreadsheetId) return Response.json({ error: 'unauthorized' }, { status: 401 })
-  return withCookies(
-    Response.json({ url: `https://docs.google.com/spreadsheets/d/${token.spreadsheetId}/edit` }),
-    setCookies,
-  )
+  try {
+    const { token, setCookies } = await requireSession(req)
+    const url =
+      !isMemoryBackend && token.spreadsheetId
+        ? `https://docs.google.com/spreadsheets/d/${token.spreadsheetId}/edit`
+        : null
+    return withCookies(Response.json({ url }), setCookies)
+  } catch (e) {
+    return errorResponse(e)
+  }
 }

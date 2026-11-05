@@ -10,6 +10,7 @@ export const ko = {
   'login.title': '운동 기록을 내 Google 시트에',
   'login.desc': '기록은 내 Google Drive의 스프레드시트에 저장됩니다. 앱은 자신이 만든 파일에만 접근합니다.',
   'login.google': 'Google로 시작하기',
+  'login.dev': '개발용 로그인 (메모리 저장소)',
 
   'common.save': '저장',
   'common.cancel': '취소',

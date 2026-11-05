@@ -12,6 +12,7 @@ export const en: Dict = {
   'login.title': 'Your workouts, in your own Google Sheet',
   'login.desc': 'Records are saved to a spreadsheet in your Google Drive. The app can only access files it created.',
   'login.google': 'Continue with Google',
+  'login.dev': 'Dev sign-in (memory storage)',
 
   'common.save': 'Save',
   'common.cancel': 'Cancel',

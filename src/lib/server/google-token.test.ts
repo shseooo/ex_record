@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { ensureFreshToken, type GoogleTokenState } from './google-token'
+import { ensureFreshToken, hasGoogleToken, type GoogleTokenState } from './google-token'
 
 const base: GoogleTokenState = {
   access_token: 'old',
@@ -34,11 +34,28 @@ describe('ensureFreshToken', () => {
     expect(result.error).toBe('RefreshTokenError')
   })
 
+  it('이미 갱신에 실패한 토큰은 다시 갱신하지 않는다', async () => {
+    const fetchFn = vi.fn()
+    const failed = { ...base, error: 'RefreshTokenError' as const }
+    const result = await ensureFreshToken(failed, { now: 2_000_000, fetchFn, clientId: 'c', clientSecret: 's' })
+    expect(result).toBe(failed)
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+
   it('refresh_token이 없으면 error', async () => {
     const result = await ensureFreshToken(
       { ...base, refresh_token: undefined },
       { now: 2_000_000, fetchFn: vi.fn(), clientId: 'c', clientSecret: 's' },
     )
     expect(result.error).toBe('RefreshTokenError')
+  })
+})
+
+describe('hasGoogleToken', () => {
+  it('access_token과 expires_at이 있어야 Google 세션이다', () => {
+    expect(hasGoogleToken(base)).toBe(true)
+    const devSession: Partial<GoogleTokenState> & { sub: string } = { sub: 'dev-user' }
+    expect(hasGoogleToken(devSession)).toBe(false)
+    expect(hasGoogleToken({ access_token: 'a' })).toBe(false)
   })
 })
