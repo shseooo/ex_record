@@ -27,7 +27,7 @@ interface Props {
   onChange: (patch: Partial<DraftSet>) => void
   onToggle: () => void
   onRemove: () => void
-  /** 유산소 스톱워치. 주면 시작/정지 버튼이 생긴다. */
+  /** 유산소/시간 운동 스톱워치. 주면 시작/정지 버튼이 생긴다. */
   onStopwatch?: (action: 'start' | 'stop') => void
 }
 
@@ -200,7 +200,9 @@ export function SetRow({ index, set, type, unit, labels, onChange, onToggle, onR
     type === 'weight' || type === 'bodyweight'
       ? [weight, reps]
       : type === 'duration'
-        ? [time]
+        ? stopwatch
+          ? [time, stopwatch]
+          : [time]
         : stopwatch
           ? [distance, time, stopwatch]
           : [distance, time]
@@ -220,7 +222,7 @@ export function SetRow({ index, set, type, unit, labels, onChange, onToggle, onR
       >
         {set.isWarmup ? labels.warmup : index + 1}
       </button>
-      <div className={cx('grid gap-2', fields.length === 3 ? 'grid-cols-[1fr_1fr_auto]' : fields.length === 2 ? 'grid-cols-2' : 'grid-cols-1')}>
+      <div className={cx('grid gap-2', fields.length === 3 ? 'grid-cols-[1fr_1fr_auto]' : stopwatch && fields.length === 2 ? 'grid-cols-[1fr_auto]' : fields.length === 2 ? 'grid-cols-2' : 'grid-cols-1')}>
         {fields.map((f, i) => (
           <div key={i}>{f}</div>
         ))}

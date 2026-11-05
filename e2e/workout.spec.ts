@@ -46,7 +46,10 @@ test('루틴 설정 → 오늘 운동 → 세트 체크 시 휴식 타이머 →
   const d = new Date()
   const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   await expect(page.getByRole('button', { name: key })).toHaveAttribute('data-marked', 'true')
-  await expect(page.getByText('60kg×10', { exact: true }).filter({ visible: true })).toBeVisible()
+  const row = page.getByRole('listitem').filter({ hasText: '벤치프레스' }).filter({ visible: true }).first()
+  await expect(row).toContainText('60kg')
+  await expect(row).toContainText('10회')
+  await expect(row).not.toContainText('×10')
 
   // 기록: 운동 선택 + 차트
   await nav(page, '기록')
@@ -120,6 +123,22 @@ test('설정에서 시트 초기화: 기록이 모두 지워진다', async ({ pa
 
   await nav(page, '기록')
   await expect(page.getByText('기록이 없습니다').filter({ visible: true }).first()).toBeVisible()
+})
+
+test('시간 운동(플랭크)에도 스톱워치, 기록은 읽기 쉬운 형식', async ({ page }, info) => {
+  await page.goto('/workout')
+  await page.getByRole('button', { name: '빈 운동 시작' }).click()
+  await page.getByRole('button', { name: '운동 추가' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: /플랭크/ }).click()
+  await page.getByRole('button', { name: '시작' }).filter({ visible: true }).first().click()
+  await expect(page.getByLabel('시간', { exact: true }).filter({ visible: true }).first()).toHaveValue('0:01', { timeout: 4000 })
+  await page.getByRole('button', { name: '정지' }).filter({ visible: true }).first().click()
+  await expect(page.getByRole('button', { name: '세트 ✓' }).filter({ visible: true }).first()).toHaveAttribute('aria-pressed', 'true')
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/plank-${info.project.name}.png` })
+  await page.getByRole('button', { name: /운동 완료/ }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '닫기' }).last().click()
+  await expect(page.locator('dialog[open]')).toHaveCount(0)
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/home-${info.project.name}.png`, fullPage: true })
 })
 
 test('유산소: 시작/정지 버튼으로 시간 기록', async ({ page }, info) => {

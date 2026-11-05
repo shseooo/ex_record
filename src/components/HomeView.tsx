@@ -11,10 +11,10 @@ import { todayKey } from '@/lib/domain/dates'
 import type { Weekday } from '@/lib/domain/types'
 import { Button, Card, Icon, SectionTitle } from './ui'
 import { SessionCard } from './SessionList'
-import { describeSet } from './workout/describe-set'
+import { SetSummary } from './SetSummary'
 
 export function HomeView() {
-  const { t, exName, fmtW } = useT()
+  const { t, exName } = useT()
   const router = useRouter()
   const data = useApp((s) => s.data)
   const workout = useApp((s) => s.workout)
@@ -73,13 +73,24 @@ export function HomeView() {
               return (
                 <li key={r.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2 text-sm">
                   <span className="font-medium">{exName(ex)}</span>
-                  <span className="text-xs text-ink-2 tabular">
-                    {last && ex
-                      ? `${t('home.lastTime')}: ${last.sets.filter((s) => !s.isWarmup).map((s) => describeSet(ex, s, fmtW)).join(', ')}`
-                      : ex
-                        ? `${r.targetSets} × ${describeSet(ex, { weightKg: r.targetWeightKg, reps: r.targetReps, durationSec: r.targetDurationSec, distanceKm: r.targetDistanceKm }, fmtW)}`
-                        : ''}
-                  </span>
+                  {ex && (
+                    <span className="flex items-baseline gap-1.5 text-xs">
+                      {last && <span className="text-ink-3">{t('home.lastTime')}</span>}
+                      <SetSummary
+                        type={ex.type}
+                        sets={
+                          last
+                            ? last.sets.filter((s) => !s.isWarmup)
+                            : Array.from({ length: r.targetSets }, () => ({
+                                weightKg: r.targetWeightKg,
+                                reps: r.targetReps,
+                                durationSec: r.targetDurationSec,
+                                distanceKm: r.targetDistanceKm,
+                              }))
+                        }
+                      />
+                    </span>
+                  )}
                 </li>
               )
             })}

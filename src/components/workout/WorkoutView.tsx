@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { UserData } from '@/lib/domain/types'
 import {
@@ -22,7 +22,7 @@ import {
   type ActiveWorkout,
   type WorkoutItem,
 } from '@/lib/domain/workout'
-import { detectPRs, suggestNext, type PR } from '@/lib/domain/history'
+import { detectPRs, type PR } from '@/lib/domain/history'
 import { sessionVolume, workingSetCount } from '@/lib/domain/metrics'
 import { createTimer } from '@/lib/domain/timer'
 import { displayWeight, formatDuration } from '@/lib/domain/units'
@@ -33,7 +33,7 @@ import { ExercisePicker } from '../ExercisePicker'
 import { PlateCalculator } from '../PlateCalculator'
 import { Button, Card, Icon, PageHeader, Sheet, cx, inputClass } from '../ui'
 import { SetRow } from './SetRow'
-import { describeSet } from './describe-set'
+import { SetSummary } from '../SetSummary'
 
 export function WorkoutView() {
   const { t } = useT()
@@ -195,16 +195,9 @@ function ExerciseCard({
   update: (fn: (w: ActiveWorkout) => ActiveWorkout) => void
   onSetDone: (restSec: number) => void
 }) {
-  const { t, exName, fmtW, unit } = useT()
+  const { t, exName, unit } = useT()
   const [plates, setPlates] = useState(false)
   const exercise = data.exercises.find((e) => e.id === item.exerciseId)
-  const suggestion = useMemo(
-    () =>
-      exercise && item.targetReps && !workout.editing
-        ? suggestNext(exercise, data.sets, item.targetReps)
-        : undefined,
-    [exercise, item.targetReps, data.sets, workout.editing],
-  )
   // 운동을 지워서 혼자 남은 슈퍼세트 항목은 표시하지 않는다
   const inSuperset = !!item.supersetGroup && workout.items.filter((i) => i.supersetGroup === item.supersetGroup).length > 1
   if (!exercise) return null
@@ -220,7 +213,7 @@ function ExerciseCard({
     start: t('workout.start'),
     stop: t('workout.stop'),
   }
-  // 유산소는 운동 중에만 스톱워치로 잰다 (바로 기록/편집은 직접 입력)
+  // 유산소/시간 운동은 운동 중에만 스톱워치로 잰다 (바로 기록/편집은 직접 입력)
   const live = !workout.log && !workout.editing
 
   const firstWeight = item.sets.find((s) => !s.done)?.weightKg ?? item.sets[0]?.weightKg
@@ -256,21 +249,11 @@ function ExerciseCard({
       <div className="mb-3 rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-2">
         {item.last ? (
           <>
-            <span className="font-medium">{t('workout.last', { date: item.last.date.slice(5) })}</span>{' '}
-            <span className="tabular">
-              {item.last.sets
-                .filter((s) => !s.isWarmup)
-                .map((s) => describeSet(exercise, s, fmtW))
-                .join(', ')}
-            </span>
+            <span className="mr-2 font-medium">{t('workout.last', { date: item.last.date.slice(5) })}</span>
+            <SetSummary type={exercise.type} sets={item.last.sets.filter((s) => !s.isWarmup)} />
           </>
         ) : (
           t('workout.noLast')
-        )}
-        {suggestion?.increased && (
-          <p className="mt-1 font-medium text-good">
-            {t('workout.suggest', { weight: fmtW(suggestion.weightKg), reps: suggestion.reps })}
-          </p>
         )}
       </div>
 
@@ -291,7 +274,7 @@ function ExerciseCard({
             }}
             onRemove={() => update((w) => removeSet(w, item.key, set.id))}
             onStopwatch={
-              exercise.type === 'cardio' && live
+              (exercise.type === 'cardio' || exercise.type === 'duration') && live
                 ? (action) =>
                     update((w) =>
                       action === 'start' ? startStopwatch(w, item.key, set.id) : stopStopwatch(w, item.key, set.id),

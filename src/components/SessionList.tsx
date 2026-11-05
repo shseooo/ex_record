@@ -6,11 +6,11 @@ import { workoutFromSession } from '@/lib/domain/workout'
 import { sessionVolume, workingSetCount } from '@/lib/domain/metrics'
 import { formatDuration } from '@/lib/domain/units'
 import { useApp, useT } from '@/lib/store/use-app'
-import { describeSet } from './workout/describe-set'
+import { SetSummary } from './SetSummary'
 import { Button, Icon } from './ui'
 
 export function SessionCard({ session, data, editable = true }: { session: Session; data: UserData; editable?: boolean }) {
-  const { t, exName, fmtW, fmtVol } = useT()
+  const { t, exName, fmtVol } = useT()
   const router = useRouter()
   const setWorkout = useApp((s) => s.setWorkout)
   const dispatch = useApp((s) => s.dispatch)
@@ -61,9 +61,9 @@ export function SessionCard({ session, data, editable = true }: { session: Sessi
           const ex = data.exercises.find((e) => e.id === id)
           const exSets = sets.filter((s) => s.exerciseId === id && !s.isWarmup)
           return (
-            <li key={id} className="flex flex-wrap justify-between gap-x-3">
-              <span className="font-medium">{exName(ex)}</span>
-              <span className="text-ink-2 tabular">{ex ? exSets.map((s) => describeSet(ex, s, fmtW)).join(', ') : ''}</span>
+            <li key={id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+              <span className="font-medium text-ink-2">{exName(ex)}</span>
+              {ex && <SetSummary type={ex.type} sets={exSets} />}
             </li>
           )
         })}

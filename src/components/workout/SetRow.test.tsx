@@ -90,6 +90,13 @@ describe('SetRow', () => {
     expect(onStopwatch).toHaveBeenCalledWith('stop')
   })
 
+  it('duration 타입에도 스톱워치 버튼', () => {
+    const onStopwatch = vi.fn()
+    render(<SetRow index={0} set={{ id: 'p', durationSec: 60, isWarmup: false, done: false }} type="duration" unit="kg" labels={labels} onChange={() => {}} onToggle={() => {}} onRemove={() => {}} onStopwatch={onStopwatch} />)
+    fireEvent.click(screen.getByRole('button', { name: 'start' }))
+    expect(onStopwatch).toHaveBeenCalledWith('start')
+  })
+
   it('완료 버튼과 워밍업 토글', () => {
     const onToggle = vi.fn()
     const onChange = vi.fn()
