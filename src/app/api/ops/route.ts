@@ -6,5 +6,6 @@ export async function POST(req: Request) {
   if (!isOpArray(body?.ops) || body.ops.length === 0 || body.ops.length > MAX_OPS_PER_REQUEST) {
     return Response.json({ error: 'invalid ops' }, { status: 400 })
   }
+  // null = 반영됨(새 운동 행 추가). 클라이언트는 로컬 데이터를 그대로 쓴다.
   return withRepository(req, async (repo) => Response.json(await repo.apply(body.ops)))
 }

@@ -13,7 +13,11 @@ export class HttpError extends Error {
 
 export interface Transport {
   load(): Promise<UserData>
-  apply(ops: Op[]): Promise<UserData>
+  /**
+   * 반영 후 전체 데이터. null이면 "반영됨"만 알린 것으로, 로컬(이미 낙관적으로 반영됨)을 그대로 쓴다.
+   * 새 운동 저장처럼 시트 끝에 행만 붙이는 경우 서버가 전체를 다시 읽지 않으려고 null을 돌려준다.
+   */
+  apply(ops: Op[]): Promise<UserData | null>
 }
 
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'unauthorized' | 'error'
@@ -75,7 +79,7 @@ export function createAppStore(
         const rest = get().pending.slice(batch.length)
         set({
           pending: rest,
-          data: applyOps(server, rest),
+          data: server ? applyOps(server, rest) : get().data,
           status: 'idle',
           lastSyncedAt: Date.now(),
         })

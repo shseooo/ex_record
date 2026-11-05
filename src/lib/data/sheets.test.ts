@@ -150,11 +150,19 @@ function fakeGoogle(opts: { fail?: (call: Call) => number | undefined } = {}) {
       return { json: {} }
     }
     if (path.includes('/values/')) {
-      const lock = sheets.find((x) => x.title === LOCK_TITLE)
-      return { json: lock ? { values: [[lockCell.get(lock.sheetId)]] } : {} }
+      const range = path.split('/values/')[1].replace(/'/g, '')
+      if (range.startsWith(LOCK_TITLE)) {
+        const lock = sheets.find((x) => x.title === LOCK_TITLE)
+        return { json: lock ? { values: [[lockCell.get(lock.sheetId)]] } : {} }
+      }
+      // 'tab!A2:A' 같은 첫 열 읽기
+      const tab = range.split('!')[0]
+      const rows = (tabs.get(tab) ?? []).slice(1).map((r) => [r[0]])
+      return { json: rows.length ? { values: rows } : {} }
     }
     if (path.endsWith(':batchUpdate')) {
-      const reqs = body!.requests as Record<string, { properties?: SheetProps; sheetId?: number; start?: { sheetId: number }; rows?: { values: { userEnteredValue: { numberValue: number } }[] }[] }>[]
+      type CellData = { userEnteredValue?: { numberValue?: number; stringValue?: string; boolValue?: boolean } }
+      const reqs = body!.requests as Record<string, { properties?: SheetProps; sheetId?: number; start?: { sheetId: number }; rows?: { values: CellData[] }[] }>[]
       // 검증 먼저: 하나라도 잘못되면 아무것도 적용하지 않는다 (실제 API와 같음)
       const titles = new Set(sheets.map((x) => x.title))
       const ids = new Set(sheets.map((x) => x.sheetId))
@@ -164,10 +172,19 @@ function fakeGoogle(opts: { fail?: (call: Call) => number | undefined } = {}) {
           titles.add(r.addSheet.properties!.title)
         }
         if (r.deleteSheet && !ids.has(r.deleteSheet.sheetId!)) return err(400, 'no sheet')
+        if (r.appendCells && !ids.has(r.appendCells.sheetId!)) return err(400, 'no sheet')
       }
       for (const r of reqs) {
         if (r.addSheet) addTab(r.addSheet.properties!.title, [], r.addSheet.properties!.sheetId)
-        if (r.updateCells) lockCell.set(r.updateCells.start!.sheetId, r.updateCells.rows![0].values[0].userEnteredValue.numberValue)
+        if (r.updateCells) lockCell.set(r.updateCells.start!.sheetId, r.updateCells.rows![0].values[0].userEnteredValue!.numberValue!)
+        if (r.appendCells) {
+          const title = sheets.find((x) => x.sheetId === r.appendCells.sheetId)!.title
+          const rows = tabs.get(title) ?? []
+          for (const row of r.appendCells.rows!) {
+            rows.push(row.values.map((c) => c.userEnteredValue?.numberValue ?? c.userEnteredValue?.stringValue ?? c.userEnteredValue?.boolValue ?? ''))
+          }
+          tabs.set(title, rows)
+        }
         if (r.deleteSheet) {
           const i = sheets.findIndex((x) => x.sheetId === r.deleteSheet.sheetId)
           tabs.delete(sheets[i].title)
@@ -226,11 +243,12 @@ const isLockAdd = (c: Call) =>
   JSON.stringify(c.body ?? '').includes('"addSheet"')
 
 describe('SheetsRepository.apply', () => {
-  it('변경된 탭만 batchUpdate 한 번으로 덮어쓰고, 지우는 요청은 보내지 않는다', async () => {
+  it('기존 세션 수정은 변경된 탭만 batchUpdate 한 번으로 덮어쓰고, 지우는 요청은 보내지 않는다', async () => {
     const g = seeded()
+    g.tabs.set('sessions', sessionRows) // s1이 이미 있음 → 수정
     const result = await new SheetsRepository('tok', 'sid', g.fn, fakeClock()).apply([sessionOp('s1')])
 
-    expect(result.sessions).toHaveLength(1)
+    expect(result!.sessions).toHaveLength(1)
     expect(g.calls.some((c) => c.url.includes('batchClear'))).toBe(false)
     const updates = g.calls.filter((c) => c.url.includes('values:batchUpdate'))
     expect(updates).toHaveLength(1)
@@ -256,7 +274,7 @@ describe('SheetsRepository.apply', () => {
       { type: 'deleteSession', id: 's2' },
       { type: 'deleteSession', id: 's3' },
     ])
-    expect(result.sessions.map((s) => s.id)).toEqual(['s1'])
+    expect(result!.sessions.map((s) => s.id)).toEqual(['s1'])
 
     const update = g.calls.find((c) => c.url.includes('values:batchUpdate'))!
     const sessions = (update.body as { data: { range: string; values: unknown[][] }[] }).data.find(
@@ -273,7 +291,7 @@ describe('SheetsRepository.apply', () => {
     const g = seeded({ fail: (c) => (c.url.includes('values:batchUpdate') ? 503 : undefined) })
     g.tabs.set('sessions', sessionRows)
     await expect(
-      new SheetsRepository('tok', 'sid', g.fn, fakeClock()).apply([sessionOp('s2')]),
+      new SheetsRepository('tok', 'sid', g.fn, fakeClock()).apply([sessionOp('s1')]), // 수정 → 전체 쓰기
     ).rejects.toThrow()
     expect(g.tabs.get('sessions')).toEqual(sessionRows)
     expect(g.sheets.some((x) => x.title === LOCK_TITLE)).toBe(false)
@@ -281,11 +299,20 @@ describe('SheetsRepository.apply', () => {
 
   it('잠금을 잡은 뒤 읽고 쓰고, 끝나면 푼다', async () => {
     const g = seeded()
+    g.tabs.set('sessions', sessionRows)
     await new SheetsRepository('tok', 'sid', g.fn, fakeClock()).apply([sessionOp('s1')])
     const order = g.calls.map((c) =>
-      isLockAdd(c) ? 'lock' : c.url.includes('batchGet') ? 'read' : c.url.includes('values:batchUpdate') ? 'write' : 'unlock',
+      isLockAdd(c)
+        ? 'lock'
+        : c.url.includes('batchGet')
+          ? 'read'
+          : c.url.includes('values:batchUpdate')
+            ? 'write'
+            : c.method === 'GET'
+              ? 'check' // 새 세션인지 확인(시트 id 목록, 세션 id 열)
+              : 'unlock',
     )
-    expect(order).toEqual(['lock', 'read', 'write', 'unlock'])
+    expect(order).toEqual(['lock', 'check', 'check', 'read', 'write', 'unlock'])
     expect(g.sheets.some((x) => x.title === LOCK_TITLE)).toBe(false)
   })
 
@@ -321,6 +348,77 @@ describe('SheetsRepository.apply', () => {
     ).rejects.toMatchObject({ status: 409 })
     expect(g.calls.some((c) => c.url.includes('values:batchUpdate'))).toBe(false)
     expect(g.sheets.find((x) => x.title === LOCK_TITLE)?.sheetId).toBe(777)
+  })
+})
+
+describe('SheetsRepository.apply: 새 운동은 행 추가만', () => {
+  const withSets = (id: string, date = '2026-11-02'): Op => ({
+    type: 'upsertSession',
+    session: { id, date, startedAt: `${date}T10:00:00.000Z`, endedAt: `${date}T11:00:00.000Z`, note: '' },
+    sets: [1, 2].map((n) => ({ id: `${id}-${n}`, sessionId: id, date, exerciseId: 'bench', setNo: n, weightKg: 60, reps: 10, isWarmup: n === 1 })),
+  })
+
+  /** 실제 시트처럼 헤더 행이 있는 상태 */
+  const withHeaders = (opts?: Parameters<typeof fakeGoogle>[0]) => {
+    const g = seeded(opts)
+    g.tabs.set('sets', [encodeTab('sets', [])[0]])
+    return g
+  }
+
+  it('전체 탭을 읽거나 다시 쓰지 않고, 세션·세트 행을 한 요청으로 붙인 뒤 null을 돌려준다', async () => {
+    const g = withHeaders()
+    g.tabs.set('sessions', sessionRows)
+    const repo = new SheetsRepository('tok', 'sid', g.fn, fakeClock())
+    expect(await repo.apply([withSets('s2')])).toBeNull()
+
+    expect(g.calls.some((c) => c.url.includes('values:batchGet'))).toBe(false)
+    expect(g.calls.some((c) => c.url.includes('values:batchUpdate'))).toBe(false)
+    const appends = g.calls.filter((c) => JSON.stringify(c.body ?? '').includes('"appendCells"'))
+    expect(appends).toHaveLength(1) // 세션+세트를 원자적으로 함께
+    expect(g.sheets.some((x) => x.title === LOCK_TITLE)).toBe(false)
+
+    const data = await repo.load()
+    expect(data.sessions.map((x) => x.id)).toEqual(['s1', 's2'])
+    expect(data.sets.map((x) => [x.id, x.weightKg, x.reps, x.isWarmup])).toEqual([
+      ['s2-1', 60, 10, true],
+      ['s2-2', 60, 10, false],
+    ])
+  })
+
+  it('같은 op를 다시 보내도(응답 유실 후 재전송) 행이 중복되지 않는다', async () => {
+    const g = withHeaders()
+    const repo = new SheetsRepository('tok', 'sid', g.fn, fakeClock())
+    await repo.apply([withSets('s2')])
+    const again = await repo.apply([withSets('s2')]) // 이미 있으니 전체 경로로 덮어쓰기
+    expect(again!.sessions).toHaveLength(1)
+    const data = await repo.load()
+    expect(data.sessions).toHaveLength(1)
+    expect(data.sets).toHaveLength(2)
+  })
+
+  it('지난 날짜를 나중에 기록해도 불러올 때는 날짜순', async () => {
+    const g = withHeaders()
+    const repo = new SheetsRepository('tok', 'sid', g.fn, fakeClock())
+    await repo.apply([withSets('late', '2026-11-04')])
+    await repo.apply([withSets('early', '2026-10-20')])
+    expect((await repo.load()).sessions.map((x) => x.id)).toEqual(['early', 'late'])
+  })
+
+  it('다른 종류의 op가 섞이면 전체 경로', async () => {
+    const g = withHeaders()
+    const result = await new SheetsRepository('tok', 'sid', g.fn, fakeClock()).apply([
+      withSets('s2'),
+      { type: 'setSettings', settings: { ...DEFAULT_SETTINGS, locale: 'en' } },
+    ])
+    expect(result!.settings.locale).toBe('en')
+    expect(g.calls.some((c) => c.url.includes('values:batchUpdate'))).toBe(true)
+  })
+
+  it('행 추가가 실패하면 아무것도 붙지 않고 잠금은 풀린다', async () => {
+    const g = withHeaders({ fail: (c) => (JSON.stringify(c.body ?? '').includes('"appendCells"') ? 503 : undefined) })
+    await expect(new SheetsRepository('tok', 'sid', g.fn, fakeClock()).apply([withSets('s2')])).rejects.toThrow()
+    expect(g.tabs.get('sets')).toEqual([encodeTab('sets', [])[0]])
+    expect(g.sheets.some((x) => x.title === LOCK_TITLE)).toBe(false)
   })
 })
 

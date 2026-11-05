@@ -1,6 +1,6 @@
 import type { BodyWeightEntry, Exercise, RoutineItem, Session, SetRecord, UserData } from '@/lib/domain/types'
 import { DEFAULT_SETTINGS } from '@/lib/domain/types'
-import { decodeSettings, decodeTab, encodeData, TAB_NAMES, type TabName } from './codec'
+import { decodeSettings, decodeTab, encodeData, encodeTab, TAB_NAMES, type TabName } from './codec'
 import { DEFAULT_EXERCISES } from './defaults'
 import { applyOps, changedTabs, emptyData, type Op } from './ops'
 import type { Repository } from './repository'
@@ -97,11 +97,30 @@ async function writeTabs(
   })
 }
 
+/** RAW 쓰기와 같은 값이 되도록: 문자열은 문자열 그대로, 빈 문자열은 빈 셀 */
+function toCellData(v: string | number) {
+  if (v === '') return {}
+  return { userEnteredValue: typeof v === 'number' ? { numberValue: v } : { stringValue: v } }
+}
+
+function appendCells(sheetId: number, rows: (string | number)[][]) {
+  return {
+    appendCells: {
+      sheetId,
+      rows: rows.map((r) => ({ values: r.map(toCellData) })),
+      fields: 'userEnteredValue',
+    },
+  }
+}
+
 function decodeAll(rows: Record<TabName, RawRows>): UserData {
   return {
     exercises: decodeTab('exercises', rows.exercises) as Exercise[],
     routine: decodeTab('routine', rows.routine) as RoutineItem[],
-    sessions: decodeTab('sessions', rows.sessions) as Session[],
+    // 새 운동은 시트 끝에 붙이므로(지난 날짜를 나중에 기록하는 경우 포함) 시트 순서가 날짜순이 아닐 수 있다
+    sessions: (decodeTab('sessions', rows.sessions) as Session[]).sort((a, b) =>
+      (a.date + a.startedAt).localeCompare(b.date + b.startedAt),
+    ),
     sets: decodeTab('sets', rows.sets) as SetRecord[],
     bodyWeights: decodeTab('bodyweights', rows.bodyweights) as BodyWeightEntry[],
     settings: decodeSettings(rows.settings),
@@ -226,12 +245,66 @@ export class SheetsRepository implements Repository {
   }
 
   /**
-   * 읽고 → 메모리에서 적용 → 바뀐 탭만 통째로 다시 쓴다.
-   * 개인 기록 규모(연간 수천 행)에서는 충분히 빠르고, 행 위치 추적이 필요 없어 단순하다.
-   * 읽기~쓰기 사이에 다른 기기의 쓰기가 끼어들면 그 내용을 덮어쓰므로 잠금 안에서 한다.
+   * ops가 모두 "시트에 아직 없는 세션 저장"이면 행 추가 한 번(원자적)으로 끝내고 true.
+   * 세션 id가 이미 있으면(수정, 또는 응답이 유실돼 다시 보낸 op) false → 전체 경로가 덮어써
+   * 중복 행이 생기지 않는다.
    */
-  async apply(ops: Op[]): Promise<UserData> {
+  private async tryAppendNewSessions(ops: Op[]): Promise<boolean> {
+    if (ops.length === 0) return false
+    const upserts = ops.filter((o): o is Extract<Op, { type: 'upsertSession' }> => o.type === 'upsertSession')
+    if (upserts.length !== ops.length) return false
+    const ids = upserts.map((o) => o.session.id)
+    if (new Set(ids).size !== ids.length) return false
+
+    const [sheetIds, existing] = await Promise.all([this.sheetIds(), this.firstColumn('sessions')])
+    if (ids.some((id) => existing.has(id))) return false
+    const sessionsSheet = sheetIds.get('sessions')
+    const setsSheet = sheetIds.get('sets')
+    if (sessionsSheet === undefined || setsSheet === undefined) return false
+
+    const sessionRows = encodeTab('sessions', upserts.map((o) => o.session)).slice(1)
+    const setRows = encodeTab('sets', upserts.flatMap((o) => o.sets)).slice(1)
+    const requests = [
+      appendCells(sessionsSheet, sessionRows),
+      ...(setRows.length > 0 ? [appendCells(setsSheet, setRows)] : []),
+    ]
+    await call(this.fetchFn, this.token, this.url(':batchUpdate'), { method: 'POST', body: { requests } })
+    return true
+  }
+
+  private async sheetIds(): Promise<Map<string, number>> {
+    const meta = await call<{ sheets?: { properties: { sheetId: number; title: string } }[] }>(
+      this.fetchFn,
+      this.token,
+      this.url(`?${new URLSearchParams({ fields: 'sheets.properties(sheetId,title)' })}`),
+    )
+    return new Map((meta.sheets ?? []).map((s) => [s.properties.title, s.properties.sheetId]))
+  }
+
+  /** 탭의 첫 열(id) 값들. 세트 탭과 달리 세션 탭은 운동 횟수만큼만 커서 작다. */
+  private async firstColumn(tab: TabName): Promise<Set<string>> {
+    const res = await call<{ values?: RawRows }>(
+      this.fetchFn,
+      this.token,
+      this.url(`/values/${encodeURIComponent(`${tab}!A2:A`)}?valueRenderOption=UNFORMATTED_VALUE`),
+    )
+    return new Set((res.values ?? []).map((r) => String(r[0] ?? '')).filter(Boolean))
+  }
+
+  /**
+   * 새 운동 저장(가장 흔한 쓰기)은 세션·세트 행을 시트 끝에 붙이기만 한다. 기록이 쌓여도
+   * 요청 크기가 일정하고 전체를 읽지 않는다. 이때는 null을 돌려주고 클라이언트는 낙관적으로
+   * 반영해 둔 로컬 데이터를 쓴다.
+   *
+   * 그 밖의 쓰기(수정·삭제·설정·루틴 등, 드묾)는 읽고 → 메모리에서 적용 → 바뀐 탭만 통째로
+   * 다시 쓴다. 행 위치 추적이 필요 없어 단순하다.
+   *
+   * 둘 다 잠금 안에서 한다: 읽기~쓰기 사이에 다른 기기의 쓰기가 끼어들면 덮어쓰거나,
+   * 같은 세션을 두 번 붙일 수 있기 때문이다.
+   */
+  async apply(ops: Op[]): Promise<UserData | null> {
     return this.withLock(async () => {
+      if (await this.tryAppendNewSessions(ops)) return null
       const rows = await this.loadRows()
       const next = applyOps(decodeAll(rows), ops)
       await writeTabs(this.fetchFn, this.token, this.spreadsheetId, next, changedTabs(ops), rows)

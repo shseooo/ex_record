@@ -55,6 +55,32 @@ describe('app store 동기화', () => {
     expect(store.getState().pending).toEqual([])
   })
 
+  it('서버가 데이터 없이 "반영됨"(null)만 돌려주면 로컬 데이터를 그대로 유지', async () => {
+    const server = fakeServer(applyOps(emptyData(), [sessionOp('s0')]))
+    const store = createAppStore(server.transport)
+    await store.getState().refresh()
+    vi.mocked(server.transport.apply).mockImplementationOnce(async () => null)
+    await store.getState().dispatch([sessionOp('s1')])
+    expect(store.getState().data?.sessions.map((s) => s.id)).toEqual(['s0', 's1'])
+    expect(store.getState().pending).toEqual([])
+    expect(store.getState().status).toBe('idle')
+  })
+
+  it('null 응답 뒤에도 아직 못 보낸 op는 로컬에 반영된 채로 남는다', async () => {
+    const server = fakeServer()
+    const store = createAppStore(server.transport)
+    await store.getState().refresh()
+    let release!: () => void
+    vi.mocked(server.transport.apply)
+      .mockImplementationOnce(() => new Promise((r) => (release = () => r(null))))
+      .mockImplementation(async () => null)
+    const first = store.getState().dispatch([sessionOp('a')])
+    void store.getState().dispatch([sessionOp('b')]) // 첫 전송 중에 추가
+    release()
+    await first
+    expect(store.getState().data?.sessions.map((s) => s.id)).toEqual(['a', 'b'])
+  })
+
   it('오프라인이면 큐에 보관하고, 다시 연결되면 전송', async () => {
     const server = fakeServer()
     const store = createAppStore(server.transport)
