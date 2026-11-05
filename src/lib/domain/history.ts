@@ -58,3 +58,30 @@ export function detectPRs(exercise: Exercise, history: SetRecord[], current: Set
   }
   return prs
 }
+
+export interface Suggestion {
+  weightKg: number
+  reps: number
+  increased: boolean
+}
+
+/** 지난 세션에서 모든 본세트가 목표 횟수를 채웠으면 증량을 제안 */
+export function suggestNext(
+  exercise: Exercise,
+  history: SetRecord[],
+  targetReps: number,
+): Suggestion | undefined {
+  if (exercise.type !== 'weight') return undefined
+  const last = lastPerformance(history, exercise.id)
+  if (!last) return undefined
+  const work = last.sets.filter((s) => !s.isWarmup && s.weightKg)
+  if (work.length === 0) return undefined
+  const topWeight = Math.max(...work.map((s) => s.weightKg!))
+  const topSets = work.filter((s) => s.weightKg === topWeight)
+  const allHit = topSets.every((s) => (s.reps ?? 0) >= targetReps)
+  return {
+    weightKg: allHit ? topWeight + exercise.incrementKg : topWeight,
+    reps: targetReps,
+    increased: allHit,
+  }
+}

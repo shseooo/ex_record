@@ -69,6 +69,7 @@ export const ko = {
   'workout.rpe': 'RPE',
   'workout.warmup': '워밍업',
   'workout.last': '지난번 ({date})',
+  'workout.suggest': '추천',
   'workout.noLast': '첫 기록',
   'workout.note': '메모',
   'workout.plates': '원판',

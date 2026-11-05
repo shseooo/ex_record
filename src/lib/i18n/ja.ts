@@ -71,6 +71,7 @@ export const ja: Dict = {
   'workout.rpe': 'RPE',
   'workout.warmup': 'ウォームアップ',
   'workout.last': '前回 ({date})',
+  'workout.suggest': 'おすすめ',
   'workout.noLast': '初回',
   'workout.note': 'メモ',
   'workout.plates': 'プレート',

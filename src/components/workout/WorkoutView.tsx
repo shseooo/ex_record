@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { UserData } from '@/lib/domain/types'
 import {
@@ -22,7 +22,7 @@ import {
   type ActiveWorkout,
   type WorkoutItem,
 } from '@/lib/domain/workout'
-import { detectPRs, type PR } from '@/lib/domain/history'
+import { detectPRs, suggestNext, type PR } from '@/lib/domain/history'
 import { sessionVolume, workingSetCount } from '@/lib/domain/metrics'
 import { createTimer } from '@/lib/domain/timer'
 import { displayWeight, formatDuration } from '@/lib/domain/units'
@@ -198,6 +198,13 @@ function ExerciseCard({
   const { t, exName, unit } = useT()
   const [plates, setPlates] = useState(false)
   const exercise = data.exercises.find((e) => e.id === item.exerciseId)
+  const suggestion = useMemo(
+    () =>
+      exercise && item.targetReps && !workout.editing && !workout.log
+        ? suggestNext(exercise, data.sets, item.targetReps)
+        : undefined,
+    [exercise, item.targetReps, data.sets, workout.editing, workout.log],
+  )
   // 운동을 지워서 혼자 남은 슈퍼세트 항목은 표시하지 않는다
   const inSuperset = !!item.supersetGroup && workout.items.filter((i) => i.supersetGroup === item.supersetGroup).length > 1
   if (!exercise) return null
@@ -254,6 +261,12 @@ function ExerciseCard({
           </>
         ) : (
           t('workout.noLast')
+        )}
+        {suggestion?.increased && (
+          <p className="mt-1 flex items-baseline gap-2">
+            <span className="font-medium text-good">{t('workout.suggest')}</span>
+            <SetSummary type={exercise.type} sets={[{ weightKg: suggestion.weightKg, reps: suggestion.reps }]} />
+          </p>
         )}
       </div>
 

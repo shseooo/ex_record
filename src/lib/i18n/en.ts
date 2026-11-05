@@ -71,6 +71,7 @@ export const en: Dict = {
   'workout.rpe': 'RPE',
   'workout.warmup': 'Warm-up',
   'workout.last': 'Last ({date})',
+  'workout.suggest': 'Try',
   'workout.noLast': 'First time',
   'workout.note': 'Note',
   'workout.plates': 'Plates',

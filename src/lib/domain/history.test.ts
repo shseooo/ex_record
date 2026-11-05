@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lastPerformance, detectPRs } from './history'
+import { lastPerformance, detectPRs, suggestNext } from './history'
 import type { Exercise, SetRecord } from './types'
 
 const bench: Exercise = {
@@ -67,5 +67,17 @@ describe('detectPRs', () => {
     const past = [set({ exerciseId: 'plank', durationSec: 60 })]
     const today = [set({ sessionId: 'new', exerciseId: 'plank', durationSec: 75 })]
     expect(detectPRs(plank, past, today)).toEqual([{ exerciseId: 'plank', kind: 'best', value: 75, previous: 60 }])
+  })
+})
+
+describe('suggestNext: 점진적 과부하', () => {
+  it('지난 세션 모든 본세트가 목표 횟수 이상이면 증량', () => {
+    expect(suggestNext(bench, history, 8)).toEqual({ weightKg: 65, reps: 8, increased: true })
+  })
+  it('목표 미달이면 같은 무게 유지', () => {
+    expect(suggestNext(bench, history, 10)).toEqual({ weightKg: 62.5, reps: 10, increased: false })
+  })
+  it('기록 없으면 undefined', () => {
+    expect(suggestNext({ ...bench, id: 'none' }, history, 8)).toBeUndefined()
   })
 })
