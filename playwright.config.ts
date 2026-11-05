@@ -22,6 +22,8 @@ export default defineConfig({
       DATA_BACKEND: 'memory',
       // next start는 NODE_ENV=production이므로 메모리 백엔드를 명시적으로 허용
       ALLOW_MEMORY_BACKEND_IN_PRODUCTION: '1',
+      // next start는 production이라 Auth.js가 기본으로 호스트를 신뢰하지 않음 (UntrustedHost)
+      AUTH_TRUST_HOST: '1',
       AUTH_SECRET: 'e2e-secret-e2e-secret-e2e-secret-00',
     },
   },

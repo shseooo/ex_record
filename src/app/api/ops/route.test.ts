@@ -7,6 +7,8 @@ let POST: (req: Request) => Promise<Response>
 let GET: (req: Request) => Promise<Response>
 
 beforeAll(async () => {
+  // 실행 환경의 NODE_ENV와 무관하게 메모리 백엔드가 켜지도록 고정
+  vi.stubEnv('NODE_ENV', 'test')
   vi.stubEnv('DATA_BACKEND', 'memory')
   ;({ POST } = await import('./route'))
   ;({ GET } = await import('../data/route'))
