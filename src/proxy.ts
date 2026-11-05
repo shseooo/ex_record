@@ -11,7 +11,7 @@ export const proxy = auth((req) => {
 export const config = {
   matcher: [
     {
-      source: '/((?!api|login|privacy|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icon.svg).*)',
+      source: '/((?!api|login|privacy|about|google[0-9a-z]+\\.html|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icon.svg).*)',
       missing: [
         { type: 'header', key: 'next-router-prefetch' },
         { type: 'header', key: 'purpose', value: 'prefetch' },

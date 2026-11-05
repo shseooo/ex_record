@@ -24,3 +24,13 @@ test('개발용 로그인 → 앱 사용 → 로그아웃하면 /login', async (
   await expect(page).toHaveURL(/\/login$/)
   expect((await page.request.get('/api/data')).status()).toBe(401)
 })
+
+test('소개 페이지는 로그인 없이 열리고 앱 이름과 개인정보처리방침 링크가 있다 (Google OAuth 홈페이지)', async ({ page }) => {
+  const res = await page.goto('/about')
+  expect(res?.status()).toBe(200)
+  await expect(page).toHaveURL(/\/about$/)
+  await expect(page.getByRole('heading', { level: 1 }).first()).toContainText('ex-record')
+  await page.getByRole('link', { name: '개인정보처리방침' }).click()
+  await expect(page).toHaveURL(/\/privacy$/)
+})
+

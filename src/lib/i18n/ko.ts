@@ -12,6 +12,7 @@ export const ko = {
   'login.google': 'Google로 시작하기',
   'login.dev': '개발용 로그인 (메모리 저장소)',
   'common.privacy': '개인정보처리방침',
+  'common.about': 'ex-record 소개',
 
   'common.save': '저장',
   'common.cancel': '취소',

@@ -14,6 +14,7 @@ export const ja: Dict = {
   'login.google': 'Googleで始める',
   'login.dev': '開発用ログイン（メモリ保存）',
   'common.privacy': 'プライバシーポリシー',
+  'common.about': 'ex-recordについて',
 
   'common.save': '保存',
   'common.cancel': 'キャンセル',

@@ -14,6 +14,7 @@ export const en: Dict = {
   'login.google': 'Continue with Google',
   'login.dev': 'Dev sign-in (memory storage)',
   'common.privacy': 'Privacy Policy',
+  'common.about': 'About ex-record',
 
   'common.save': 'Save',
   'common.cancel': 'Cancel',
