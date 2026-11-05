@@ -191,3 +191,10 @@ test('체중: 홈에서 오늘 체중 저장, 기록 탭에서 수정', async ({
   await nav(page, '홈')
   await expect(page.getByLabel('오늘 체중').filter({ visible: true })).toHaveValue('72.9')
 })
+
+test('운동 탭: 오늘 루틴이 없으면 "오늘 운동 시작"을 숨기고 빈 운동 시작이 메인', async ({ page }) => {
+  await page.goto('/workout')
+  await expect(page.getByText('오늘은 설정된 루틴이 없습니다.')).toBeVisible()
+  await expect(page.getByRole('button', { name: '오늘 운동 시작' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '빈 운동 시작' })).toHaveClass(/bg-accent/)
+})

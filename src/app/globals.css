@@ -110,3 +110,11 @@ input[type="number"] {
 .timer-flash {
   animation: flash 0.6s ease-in-out 4;
 }
+
+/* Tailwind v4 preflight는 버튼 커서를 default로 둔다: 누를 수 있는 버튼은 포인터로 */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+}

@@ -10,6 +10,7 @@ import {
   restFor,
   workoutFromSession,
   logWorkout,
+  plannedItemsForDay,
   setWorkoutDate,
   startStopwatch,
   stopStopwatch,
@@ -82,6 +83,20 @@ describe('startWorkout', () => {
     const archived = exercises.map((e) => (e.id === 'plank' ? { ...e, archived: true } : e))
     const w = startWorkout({ routine, exercises: archived, sets: [] }, NOW, gen)
     expect(w.items.map((i) => i.exerciseId)).toEqual(['bench'])
+  })
+})
+
+describe('plannedItemsForDay: 그 요일에 시작할 루틴', () => {
+  it('요일 순서대로, 보관된 운동은 빼고', () => {
+    const archived = exercises.map((e) => (e.id === 'bench' ? { ...e, archived: true } : e))
+    expect(plannedItemsForDay({ routine, exercises }, 4).map((r) => r.id)).toEqual(['r1', 'r2'])
+    expect(plannedItemsForDay({ routine, exercises: archived }, 4).map((r) => r.id)).toEqual(['r2'])
+  })
+
+  it('루틴 운동이 모두 보관됐으면 빈 목록 (홈/운동 탭에서 "오늘 운동 시작"을 숨김)', () => {
+    const allArchived = exercises.map((e) => ({ ...e, archived: true }))
+    expect(plannedItemsForDay({ routine, exercises: allArchived }, 4)).toEqual([])
+    expect(plannedItemsForDay({ routine, exercises }, 0)).toEqual([])
   })
 })
 

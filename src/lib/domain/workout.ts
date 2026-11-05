@@ -87,15 +87,21 @@ function buildItem(
   }
 }
 
+/** 그 요일에 실제로 시작할 루틴 항목: 보관(archived)된 운동은 뺀다. 화면 표시와 시작 로직이 같은 기준을 쓴다. */
+export function plannedItemsForDay(
+  data: { routine: RoutineItem[]; exercises: Exercise[] },
+  day: Weekday,
+): RoutineItem[] {
+  const active = new Set(data.exercises.filter((e) => !e.archived).map((e) => e.id))
+  return itemsForDay(data.routine, day).filter((r) => active.has(r.exerciseId))
+}
+
 export function startWorkout(
   data: { routine: RoutineItem[]; exercises: Exercise[]; sets: SetRecord[] },
   now = new Date(),
   gen: Gen = newId,
 ): ActiveWorkout {
-  const active = new Set(data.exercises.filter((e) => !e.archived).map((e) => e.id))
-  const today = itemsForDay(data.routine, now.getDay() as Weekday).filter((r) =>
-    active.has(r.exerciseId),
-  )
+  const today = plannedItemsForDay(data, now.getDay() as Weekday)
   return {
     sessionId: gen(),
     date: toDateKey(now),
@@ -120,11 +126,8 @@ export function logWorkout(
   now = new Date(),
   gen: Gen = newId,
 ): ActiveWorkout {
-  const active = new Set(data.exercises.filter((e) => !e.archived).map((e) => e.id))
   const history = data.sets.filter((s) => s.date <= date)
-  const items = itemsForDay(data.routine, parseDateKey(date).getDay() as Weekday).filter((r) =>
-    active.has(r.exerciseId),
-  )
+  const items = plannedItemsForDay(data, parseDateKey(date).getDay() as Weekday)
   return {
     sessionId: gen(),
     date,

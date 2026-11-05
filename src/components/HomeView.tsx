@@ -3,9 +3,8 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { bodyWeightOps, useApp, useT } from '@/lib/store/use-app'
-import { itemsForDay } from '@/lib/domain/routine'
 import { lastPerformance } from '@/lib/domain/history'
-import { logWorkout, startWorkout } from '@/lib/domain/workout'
+import { logWorkout, plannedItemsForDay, startWorkout } from '@/lib/domain/workout'
 import { countSessionsInWeek, weeklyStreak } from '@/lib/domain/progress'
 import { todayKey } from '@/lib/domain/dates'
 import type { Weekday } from '@/lib/domain/types'
@@ -26,7 +25,7 @@ export function HomeView() {
   const now = new Date()
   const today = todayKey(now)
   const day = now.getDay() as Weekday
-  const routine = itemsForDay(data.routine, day)
+  const routine = plannedItemsForDay(data, day)
   const goal = data.settings.weeklyGoal
   const done = countSessionsInWeek(data.sessions, today)
   const streak = weeklyStreak(data.sessions, goal, today)

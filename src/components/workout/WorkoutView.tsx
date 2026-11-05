@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { UserData } from '@/lib/domain/types'
+import type { UserData, Weekday } from '@/lib/domain/types'
 import {
   addExercise,
   addSet,
@@ -10,6 +10,7 @@ import {
   finishWorkout,
   logWorkout,
   moveExercise,
+  plannedItemsForDay,
   removeExercise,
   removeSet,
   restFor,
@@ -61,15 +62,22 @@ export function WorkoutView() {
   if (!data) return null
 
   if (!workout) {
+    // 홈과 같은 기준: 오늘 시작할 루틴(보관 운동 제외)이 없으면 "오늘 운동 시작"을 숨기고 빈 운동을 메인으로
+    const hasRoutine = plannedItemsForDay(data, new Date().getDay() as Weekday).length > 0
     return (
       <div>
         <PageHeader title={t('nav.workout')} />
         <Card className="flex flex-col gap-2">
-          <Button variant="primary" size="lg" onClick={() => setWorkout(startWorkout(data))}>
-            {t('home.start')}
-          </Button>
+          {hasRoutine ? (
+            <Button variant="primary" size="lg" onClick={() => setWorkout(startWorkout(data))}>
+              {t('home.start')}
+            </Button>
+          ) : (
+            <p className="text-sm text-ink-3">{t('home.noRoutine')}</p>
+          )}
           <Button
             size="lg"
+            variant={hasRoutine ? 'secondary' : 'primary'}
             onClick={() => setWorkout({ ...startWorkout(data), items: [] })}
           >
             {t('home.startEmpty')}
