@@ -14,6 +14,8 @@ import {
   removeSet,
   restFor,
   setWorkoutDate,
+  startStopwatch,
+  stopStopwatch,
   startWorkout,
   toggleDone,
   updateSet,
@@ -215,7 +217,11 @@ function ExerciseCard({
     done: `${t('workout.set')} ✓`,
     remove: t('common.delete'),
     warmup: 'W',
+    start: t('workout.start'),
+    stop: t('workout.stop'),
   }
+  // 유산소는 운동 중에만 스톱워치로 잰다 (바로 기록/편집은 직접 입력)
+  const live = !workout.log && !workout.editing
 
   const firstWeight = item.sets.find((s) => !s.done)?.weightKg ?? item.sets[0]?.weightKg
 
@@ -284,6 +290,14 @@ function ExerciseCard({
               if (willBeDone) onSetDone(restFor(item, data.exercises, workout))
             }}
             onRemove={() => update((w) => removeSet(w, item.key, set.id))}
+            onStopwatch={
+              exercise.type === 'cardio' && live
+                ? (action) =>
+                    update((w) =>
+                      action === 'start' ? startStopwatch(w, item.key, set.id) : stopStopwatch(w, item.key, set.id),
+                    )
+                : undefined
+            }
           />
         ))}
       </div>

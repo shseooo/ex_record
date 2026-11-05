@@ -57,6 +57,8 @@ export const ko = {
   'workout.set': '세트',
   'workout.weight': '무게',
   'workout.reps': '횟수',
+  'workout.start': '시작',
+  'workout.stop': '정지',
   'workout.time': '시간',
   'workout.distance': '거리(km)',
   'workout.rpe': 'RPE',

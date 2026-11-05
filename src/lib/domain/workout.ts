@@ -13,6 +13,8 @@ export interface DraftSet {
   rpe?: number
   isWarmup: boolean
   done: boolean
+  /** 유산소 스톱워치 실행 중이면 시작 시각(epoch ms). 시각 기준이라 백그라운드에서도 정확하다. */
+  runningSince?: number
 }
 
 export interface WorkoutItem {
@@ -179,7 +181,8 @@ export function addExercise(
   history: SetRecord[],
   gen: Gen = newId,
 ): ActiveWorkout {
-  const item = buildItem(exercise.id, history, gen, { targetSets: 3 })
+  // 유산소는 보통 한 번이라 1세트로 시작
+  const item = buildItem(exercise.id, history, gen, { targetSets: exercise.type === 'cardio' ? 1 : 3 })
   return { ...w, items: [...w.items, item] }
 }
 
@@ -200,7 +203,7 @@ export function addSet(w: ActiveWorkout, key: string, gen: Gen = newId): ActiveW
   return mapItem(w, key, (i) => {
     const prev = i.sets.at(-1)
     const next: DraftSet = prev
-      ? { ...prev, id: gen(), done: false, isWarmup: false }
+      ? { ...prev, id: gen(), done: false, isWarmup: false, runningSince: undefined }
       : { id: gen(), isWarmup: false, done: false }
     return { ...i, sets: [...i.sets, next] }
   })
@@ -229,6 +232,37 @@ export function toggleDone(w: ActiveWorkout, key: string, setId: string): Active
   }))
 }
 
+/** 스톱워치 경과 초 (이미 기록된 시간 + 실행 중인 구간) */
+export function stopwatchSec(set: DraftSet, now: number): number {
+  const running = set.runningSince === undefined ? 0 : Math.max(0, now - set.runningSince)
+  return (set.durationSec ?? 0) + Math.floor(running / 1000)
+}
+
+export function startStopwatch(w: ActiveWorkout, key: string, setId: string, now = Date.now()): ActiveWorkout {
+  return mapItem(w, key, (i) => ({
+    ...i,
+    sets: i.sets.map((s) => {
+      if (s.id !== setId || s.runningSince !== undefined) return s
+      // 아직 완료 전이면 미리 채워진 값(지난 기록/목표)이므로 0부터, 완료된 세트는 이어서(재개)
+      return s.done ? { ...s, runningSince: now } : { ...s, durationSec: undefined, runningSince: now }
+    }),
+  }))
+}
+
+/** 정지: 경과 시간을 더해 기록하고 세트를 완료로 표시 */
+export function stopStopwatch(w: ActiveWorkout, key: string, setId: string, now = Date.now()): ActiveWorkout {
+  const item = w.items.find((i) => i.key === key)
+  if (!item?.sets.some((s) => s.id === setId && s.runningSince !== undefined)) return w
+  return mapItem(w, key, (i) => ({
+    ...i,
+    sets: i.sets.map((s) =>
+      s.id === setId && s.runningSince !== undefined
+        ? { ...s, durationSec: stopwatchSec(s, now), runningSince: undefined, done: true }
+        : s,
+    ),
+  }))
+}
+
 /** 세트 완료 후 휴식 시간. 슈퍼세트 중간 운동이면 바로 다음 운동으로 넘어가므로 0. */
 export function restFor(item: WorkoutItem, exercises: Exercise[], w?: ActiveWorkout): number {
   if (w && item.supersetGroup) {
@@ -254,7 +288,9 @@ export function finishWorkout(
   const sets: SetRecord[] = []
   for (const item of w.items) {
     let setNo = 1
-    for (const d of item.sets) {
+    for (const raw of item.sets) {
+      // 스톱워치가 돌고 있는 채로 끝내면 그 시각까지 기록한다
+      const d = raw.runningSince === undefined ? raw : { ...raw, durationSec: stopwatchSec(raw, now.getTime()), done: true }
       if (!d.done) continue
       sets.push({
         id: d.id,

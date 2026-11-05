@@ -11,6 +11,9 @@ import {
   workoutFromSession,
   logWorkout,
   setWorkoutDate,
+  startStopwatch,
+  stopStopwatch,
+  addExercise as addEx,
 } from './workout'
 import type { Exercise, RoutineItem, SetRecord } from './types'
 
@@ -195,6 +198,66 @@ describe('편집 저장', () => {
     const session = { id: 'old', date: '2026-10-29', startedAt: '2026-10-29T10:00:00.000Z', endedAt: '2026-10-29T11:00:00.000Z', note: '' }
     const w = workoutFromSession(session, history, exercises, gen)
     expect(finishWorkout(w, NOW).session.endedAt).toBe('2026-10-29T11:00:00.000Z')
+  })
+})
+
+describe('유산소 스톱워치', () => {
+  const run: Exercise = { ...ex('running', 'cardio', 0) }
+  const T0 = new Date(2026, 10, 5, 19, 0, 0).getTime()
+  const base = () => {
+    const w = addEx({ ...startWorkout({ routine: [], exercises: [run], sets: [] }, NOW, gen), items: [] }, run, [], gen)
+    return { w, key: w.items[0].key, id: w.items[0].sets[0].id }
+  }
+
+  it('시작하면 시작 시각을 기록하고, 정지하면 경과 시간을 durationSec에 넣고 완료 처리', () => {
+    const { w, key, id } = base()
+    const started = startStopwatch(w, key, id, T0)
+    expect(started.items[0].sets[0].runningSince).toBe(T0)
+    const stopped = stopStopwatch(started, key, id, T0 + 25 * 60_000 + 400)
+    const set = stopped.items[0].sets[0]
+    expect(set.runningSince).toBeUndefined()
+    expect(set.durationSec).toBe(1500)
+    expect(set.done).toBe(true)
+  })
+
+  it('다시 시작하면 이어서 더한다 (일시정지 후 재개)', () => {
+    const { w, key, id } = base()
+    let x = stopStopwatch(startStopwatch(w, key, id, T0), key, id, T0 + 60_000)
+    x = stopStopwatch(startStopwatch(x, key, id, T0 + 120_000), key, id, T0 + 150_000)
+    expect(x.items[0].sets[0].durationSec).toBe(90)
+  })
+
+  it('이미 실행 중이면 시작을 무시, 실행 중이 아니면 정지를 무시', () => {
+    const { w, key, id } = base()
+    const s1 = startStopwatch(w, key, id, T0)
+    expect(startStopwatch(s1, key, id, T0 + 5000).items[0].sets[0].runningSince).toBe(T0)
+    expect(stopStopwatch(w, key, id, T0)).toEqual(w)
+  })
+
+  it('실행 중인 채로 운동을 끝내면 그 시각까지 기록하고 완료로 저장', () => {
+    const { w, key, id } = base()
+    const running = startStopwatch(w, key, id, T0)
+    const { sets } = finishWorkout(running, new Date(T0 + 30 * 60_000))
+    expect(sets).toHaveLength(1)
+    expect(sets[0].durationSec).toBe(1800)
+  })
+
+  it('지난 기록으로 미리 채워진 시간은 이어 더하지 않고 0부터 잰다', () => {
+    const { w, key, id } = base()
+    const prefilled = updateSet(w, key, id, { durationSec: 1500 })
+    const x = stopStopwatch(startStopwatch(prefilled, key, id, T0), key, id, T0 + 60_000)
+    expect(x.items[0].sets[0].durationSec).toBe(60)
+  })
+
+  it('세트 추가는 실행 중인 스톱워치를 복사하지 않는다', () => {
+    const { w, key, id } = base()
+    const x = addSet(startStopwatch(w, key, id, T0), key, gen)
+    expect(x.items[0].sets[1].runningSince).toBeUndefined()
+  })
+
+  it('유산소를 추가하면 (지난 기록이 없을 때) 1세트로 시작', () => {
+    const { w } = base()
+    expect(w.items[0].sets).toHaveLength(1)
   })
 })
 

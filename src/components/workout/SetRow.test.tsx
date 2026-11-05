@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { SetRow } from './SetRow'
 import type { DraftSet } from '@/lib/domain/workout'
 
-const labels = { weight: 'weight', reps: 'reps', time: 'time', distance: 'km', done: 'done', remove: 'remove', warmup: 'W' }
+const labels = { weight: 'weight', reps: 'reps', time: 'time', distance: 'km', done: 'done', remove: 'remove', warmup: 'W', start: 'start', stop: 'stop' }
 const base: DraftSet = { id: 's1', weightKg: 60, reps: 10, isWarmup: false, done: false }
 
 describe('SetRow', () => {
@@ -70,6 +70,24 @@ describe('SetRow', () => {
     fireEvent.change(screen.getByLabelText('weight'), { target: { value: '-20' } })
     expect(onChange).toHaveBeenLastCalledWith({ weightKg: undefined })
     expect(screen.queryByRole('button', { name: '±' })).toBeNull()
+  })
+
+  it('cardio 타입: 시작 버튼으로 스톱워치 시작', () => {
+    const onStopwatch = vi.fn()
+    render(<SetRow index={0} set={{ id: 'c', isWarmup: false, done: false }} type="cardio" unit="kg" labels={labels} onChange={() => {}} onToggle={() => {}} onRemove={() => {}} onStopwatch={onStopwatch} />)
+    fireEvent.click(screen.getByRole('button', { name: 'start' }))
+    expect(onStopwatch).toHaveBeenCalledWith('start')
+  })
+
+  it('cardio 타입: 실행 중이면 경과 시간을 보여주고(직접 입력 불가) 정지 버튼', () => {
+    const onStopwatch = vi.fn()
+    const set = { id: 'c', isWarmup: false, done: false, runningSince: Date.now() - 65_000 }
+    render(<SetRow index={0} set={set} type="cardio" unit="kg" labels={labels} onChange={() => {}} onToggle={() => {}} onRemove={() => {}} onStopwatch={onStopwatch} />)
+    const time = screen.getByLabelText('time')
+    expect((time as HTMLInputElement).value).toMatch(/^1:0[56]$/)
+    expect(time).toHaveAttribute('readonly')
+    fireEvent.click(screen.getByRole('button', { name: 'stop' }))
+    expect(onStopwatch).toHaveBeenCalledWith('stop')
   })
 
   it('완료 버튼과 워밍업 토글', () => {

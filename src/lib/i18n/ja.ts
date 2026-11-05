@@ -59,6 +59,8 @@ export const ja: Dict = {
   'workout.set': 'セット',
   'workout.weight': '重量',
   'workout.reps': '回数',
+  'workout.start': '開始',
+  'workout.stop': '停止',
   'workout.time': '時間',
   'workout.distance': '距離(km)',
   'workout.rpe': 'RPE',

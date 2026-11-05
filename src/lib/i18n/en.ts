@@ -59,6 +59,8 @@ export const en: Dict = {
   'workout.set': 'Set',
   'workout.weight': 'Weight',
   'workout.reps': 'Reps',
+  'workout.start': 'Start',
+  'workout.stop': 'Stop',
   'workout.time': 'Time',
   'workout.distance': 'Dist (km)',
   'workout.rpe': 'RPE',

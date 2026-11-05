@@ -121,3 +121,25 @@ test('설정에서 시트 초기화: 기록이 모두 지워진다', async ({ pa
   await nav(page, '기록')
   await expect(page.getByText('기록이 없습니다').filter({ visible: true }).first()).toBeVisible()
 })
+
+test('유산소: 시작/정지 버튼으로 시간 기록', async ({ page }, info) => {
+  await page.goto('/workout')
+  await page.getByRole('button', { name: '빈 운동 시작' }).click()
+  await page.getByRole('button', { name: '운동 추가' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: /러닝/ }).click()
+
+  await page.getByRole('button', { name: '시작' }).filter({ visible: true }).first().click()
+  const time = page.getByLabel('시간', { exact: true }).filter({ visible: true }).first()
+  await expect(time).toHaveAttribute('readonly')
+  await expect(time).toHaveValue('0:02', { timeout: 5000 })
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/cardio-${info.project.name}.png` })
+
+  await page.getByRole('button', { name: '정지' }).filter({ visible: true }).first().click()
+  await expect(time).not.toHaveAttribute('readonly')
+  await expect(page.getByRole('button', { name: '세트 ✓' }).filter({ visible: true }).first()).toHaveAttribute('aria-pressed', 'true')
+  // 정지 후 휴식 타이머는 뜨지 않는다
+  await expect(page.getByRole('timer')).toBeHidden()
+
+  await page.getByRole('button', { name: /운동 완료/ }).click()
+  await expect(page.getByRole('dialog')).toContainText('저장했습니다')
+})
