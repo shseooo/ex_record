@@ -175,6 +175,9 @@ test('체중: 홈에서 오늘 체중 저장, 기록 탭에서 수정', async ({
   await nav(page, '기록')
   const row = page.getByRole('listitem').filter({ hasText: '72.4' }).filter({ visible: true }).first()
   await expect(row).toBeVisible()
+  // 기록이 하나여도 체중 그래프가 보인다
+  // (이 테스트엔 운동 기록이 없어 다른 그래프는 '기록 없음'이므로 보이는 차트 = 체중 그래프)
+  await expect(page.locator('.recharts-surface').filter({ visible: true })).toHaveCount(1)
   await row.getByRole('button', { name: '편집' }).click()
   const weight = page.getByLabel('체중', { exact: true }).filter({ visible: true })
   await expect(weight).toHaveValue('72.4')

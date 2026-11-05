@@ -77,6 +77,7 @@ export function ProgressView() {
 
   const bwData = data.bodyWeights
     .filter((b) => !from || b.date >= from)
+    .sort((a, b) => a.date.localeCompare(b.date)) // 지난 날짜를 나중에 넣어도 선이 날짜순으로
     .map((b) => ({ key: b.date, weight: round1(fromKg(b.weightKg, unit)) }))
 
   const series = [
@@ -160,7 +161,7 @@ export function ProgressView() {
 
       <Card>
         <SectionTitle>{t('progress.bodyWeight')}</SectionTitle>
-        {bwData.length > 1 && (
+        {bwData.length > 0 && (
           <div className="mb-3">
           <TrendLineChart
             data={bwData}
