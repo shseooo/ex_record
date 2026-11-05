@@ -30,6 +30,8 @@ describe('volume', () => {
     expect(setVolume(s({ weightKg: 60, reps: 10 }))).toBe(600)
     expect(setVolume(s({ weightKg: 60, reps: 10, isWarmup: true }))).toBe(0)
     expect(setVolume(s({ reps: 10 }))).toBe(0)
+    // 보조 무게(음수)는 볼륨에 넣지 않는다
+    expect(setVolume(s({ weightKg: -20, reps: 10 }))).toBe(0)
   })
   it('세션 볼륨은 합계', () => {
     expect(

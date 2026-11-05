@@ -2,16 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Exercise, UserData } from '@/lib/domain/types'
+import type { UserData } from '@/lib/domain/types'
 import {
   addExercise,
   addSet,
   completedSetCount,
   finishWorkout,
+  logWorkout,
   moveExercise,
   removeExercise,
   removeSet,
   restFor,
+  setWorkoutDate,
   startWorkout,
   toggleDone,
   updateSet,
@@ -22,12 +24,14 @@ import { detectPRs, suggestNext, type PR } from '@/lib/domain/history'
 import { sessionVolume, workingSetCount } from '@/lib/domain/metrics'
 import { createTimer } from '@/lib/domain/timer'
 import { displayWeight, formatDuration } from '@/lib/domain/units'
+import { todayKey } from '@/lib/domain/dates'
 import { unlockAudio } from '@/lib/alarm'
 import { appStore, useApp, useT } from '@/lib/store/use-app'
 import { ExercisePicker } from '../ExercisePicker'
 import { PlateCalculator } from '../PlateCalculator'
 import { Button, Card, Icon, PageHeader, Sheet, cx, inputClass } from '../ui'
 import { SetRow } from './SetRow'
+import { describeSet } from './describe-set'
 
 export function WorkoutView() {
   const { t } = useT()
@@ -59,6 +63,9 @@ export function WorkoutView() {
             onClick={() => setWorkout({ ...startWorkout(data), items: [] })}
           >
             {t('home.startEmpty')}
+          </Button>
+          <Button variant="ghost" onClick={() => setWorkout(logWorkout(data, todayKey()))}>
+            <Icon name="edit" className="size-4" /> {t('home.logOnly')}
           </Button>
         </Card>
       </div>
@@ -94,9 +101,21 @@ export function WorkoutView() {
   return (
     <div>
       <PageHeader
-        title={workout.editing ? `${t('workout.editTitle')} · ${workout.date}` : t('workout.title')}
-        right={!workout.editing && <Elapsed since={workout.startedAt} />}
+        title={workout.editing ? t('workout.editTitle') : workout.log ? t('workout.logTitle') : t('workout.title')}
+        right={!workout.editing && !workout.log && <Elapsed since={workout.startedAt} />}
       />
+      {(workout.editing || workout.log) && (
+        <label className="mb-3 flex items-center gap-2 text-sm text-ink-2">
+          {t('workout.date')}
+          <input
+            type="date"
+            className={cx(inputClass, 'w-auto flex-1 tabular')}
+            value={workout.date}
+            max={todayKey()}
+            onChange={(e) => e.target.value && update((w) => setWorkoutDate(w, e.target.value))}
+          />
+        </label>
+      )}
 
       <div className="flex flex-col gap-3">
         {workout.items.length === 0 && <p className="py-8 text-center text-ink-3">{t('workout.empty')}</p>}
@@ -110,6 +129,8 @@ export function WorkoutView() {
             isLast={idx === workout.items.length - 1}
             update={update}
             onSetDone={(sec) => {
+              // 바로 기록/편집 중에는 휴식 타이머를 띄우지 않는다
+              if (workout.log || workout.editing) return
               unlockAudio()
               if (sec > 0) setTimer(createTimer(sec))
             }}
@@ -133,7 +154,7 @@ export function WorkoutView() {
             {t('workout.discard')}
           </Button>
           <Button variant="primary" size="lg" onClick={finish}>
-            {t('workout.finish')} ({completedSetCount(workout)})
+            {workout.log || workout.editing ? t('common.save') : t('workout.finish')} ({completedSetCount(workout)})
           </Button>
         </div>
       </div>
@@ -174,10 +195,12 @@ function ExerciseCard({
         : undefined,
     [exercise, item.targetReps, data.sets, workout.editing],
   )
+  // 운동을 지워서 혼자 남은 슈퍼세트 항목은 표시하지 않는다
+  const inSuperset = !!item.supersetGroup && workout.items.filter((i) => i.supersetGroup === item.supersetGroup).length > 1
   if (!exercise) return null
 
   const labels = {
-    weight: exercise.type === 'bodyweight' ? `+${unit}` : unit,
+    weight: exercise.type === 'bodyweight' ? `±${unit}` : unit,
     reps: t('workout.reps'),
     time: t('workout.time'),
     distance: t('workout.distance'),
@@ -189,13 +212,13 @@ function ExerciseCard({
   const firstWeight = item.sets.find((s) => !s.done)?.weightKg ?? item.sets[0]?.weightKg
 
   return (
-    <Card className={cx(item.supersetGroup && 'border-l-4 border-l-accent')}>
+    <Card className={cx(inSuperset && 'border-l-4 border-l-accent')}>
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="truncate font-semibold">{exName(exercise)}</h3>
           <p className="text-xs text-ink-3">
             {t(`part.${exercise.bodyPart}`)}
-            {item.supersetGroup && ` · ${t('workout.superset')}`}
+            {inSuperset && ` · ${t('workout.superset')}`}
           </p>
         </div>
         <div className="flex shrink-0 items-center">
@@ -267,25 +290,6 @@ function ExerciseCard({
       />
     </Card>
   )
-}
-
-export function describeSet(
-  exercise: Pick<Exercise, 'type'>,
-  s: { weightKg?: number; reps?: number; durationSec?: number; distanceKm?: number },
-  fmtW: (kg?: number) => string,
-): string {
-  switch (exercise.type) {
-    case 'weight':
-      return `${fmtW(s.weightKg)}×${s.reps ?? '-'}`
-    case 'bodyweight':
-      return s.weightKg ? `+${fmtW(s.weightKg)}×${s.reps ?? '-'}` : `${s.reps ?? '-'}`
-    case 'duration':
-      return s.durationSec !== undefined ? formatDuration(s.durationSec) : '-'
-    case 'cardio':
-      return [s.distanceKm !== undefined ? `${s.distanceKm}km` : '', s.durationSec !== undefined ? formatDuration(s.durationSec) : '']
-        .filter(Boolean)
-        .join(' / ')
-  }
 }
 
 function Elapsed({ since }: { since: string }) {

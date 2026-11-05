@@ -6,8 +6,10 @@ import type { BodyPart, Exercise, ExerciseType } from '@/lib/domain/types'
  */
 const seed: [string, ExerciseType, BodyPart, number, number][] = [
   ['bench_press', 'weight', 'chest', 120, 2.5],
+  ['db_press', 'weight', 'chest', 90, 2],
   ['incline_db_press', 'weight', 'chest', 90, 2],
   ['push_up', 'bodyweight', 'chest', 60, 0],
+  ['dips', 'bodyweight', 'chest', 90, 0],
   ['deadlift', 'weight', 'back', 180, 5],
   ['barbell_row', 'weight', 'back', 120, 2.5],
   ['lat_pulldown', 'weight', 'back', 90, 2.5],

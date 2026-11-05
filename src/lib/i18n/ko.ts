@@ -11,6 +11,7 @@ export const ko = {
   'login.desc': '기록은 내 Google Drive의 스프레드시트에 저장됩니다. 앱은 자신이 만든 파일에만 접근합니다.',
   'login.google': 'Google로 시작하기',
   'login.dev': '개발용 로그인 (메모리 저장소)',
+  'common.privacy': '개인정보처리방침',
 
   'common.save': '저장',
   'common.cancel': '취소',
@@ -34,6 +35,7 @@ export const ko = {
   'home.noRoutine': '오늘은 설정된 루틴이 없습니다.',
   'home.start': '오늘 운동 시작',
   'home.startEmpty': '빈 운동 시작',
+  'home.logOnly': '기록만 하기',
   'home.resume': '진행 중인 운동 계속',
   'home.weekGoal': '이번 주 {done}/{goal}회',
   'home.streak': '{n}주 연속 목표 달성',
@@ -43,6 +45,8 @@ export const ko = {
 
   'workout.title': '운동 중',
   'workout.editTitle': '기록 편집',
+  'workout.logTitle': '운동 기록',
+  'workout.date': '날짜',
   'workout.empty': '운동을 추가하세요.',
   'workout.addExercise': '운동 추가',
   'workout.addSet': '세트 추가',
@@ -84,6 +88,7 @@ export const ko = {
   'calendar.title': '달력',
   'calendar.noWorkout': '운동 기록이 없습니다.',
   'calendar.sessionCount': '이번 달 {n}회',
+  'calendar.addLog': '이 날 기록 추가',
 
   'progress.title': '기록 추이',
   'progress.exercise': '운동',
@@ -146,6 +151,11 @@ export const ko = {
   'settings.sheet': '내 Google 시트 열기',
   'settings.exercises': '운동 목록 관리',
   'settings.signOut': '로그아웃',
+  'settings.resetSheet': '시트 초기화',
+  'settings.resetHint': '모든 운동 기록·루틴·설정을 지우고 새 시트를 만듭니다. 기존 시트의 백업 사본은 Drive 휴지통에 30일간 남습니다.',
+  'settings.resetConfirm': '정말 초기화할까요? 모든 기록이 삭제되고 되돌릴 수 없습니다. (백업 사본은 Drive 휴지통에 30일간 보관)',
+  'settings.resetDone': '초기화했습니다.',
+  'settings.resetFailed': '초기화하지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.',
   'settings.vibrationUnsupported': '이 기기/브라우저는 진동을 지원하지 않아 소리와 화면으로 알립니다.',
 
   'day.0': '일',
@@ -164,8 +174,10 @@ export const ko = {
   'dayLong.6': '토요일',
 
   'ex.bench_press': '벤치프레스',
+  'ex.db_press': '덤벨 프레스',
   'ex.incline_db_press': '인클라인 덤벨 프레스',
   'ex.push_up': '푸시업',
+  'ex.dips': '딥스',
   'ex.deadlift': '데드리프트',
   'ex.barbell_row': '바벨 로우',
   'ex.lat_pulldown': '랫 풀다운',

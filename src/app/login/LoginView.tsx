@@ -34,6 +34,9 @@ export function LoginView({ children }: { children?: ReactNode }) {
           </button>
         </form>
         {children}
+        <a href="/privacy" className="mt-6 block text-center text-xs text-ink-3 underline">
+          {t('common.privacy')}
+        </a>
       </div>
     </main>
   )

@@ -66,3 +66,51 @@ test('설정에서 언어와 단위 변경', async ({ page }) => {
   await page.getByRole('radio', { name: '한국어' }).click()
   await expect(page.getByRole('heading', { name: '설정' })).toBeVisible()
 })
+
+test('운동 시작 없이 바로 기록: 날짜 선택, 휴식 타이머 없음', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '기록만 하기' }).click()
+  await expect(page).toHaveURL(/\/workout/)
+  await expect(page.getByRole('heading', { name: '운동 기록' })).toBeVisible()
+
+  const y = new Date(Date.now() - 86400000)
+  const key = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`
+  await page.getByLabel('날짜').fill(key)
+
+  await page.getByRole('button', { name: '운동 추가' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: /벤치프레스/ }).click()
+  await page.getByLabel('kg', { exact: true }).filter({ visible: true }).first().fill('50')
+  await page.getByLabel('횟수', { exact: true }).filter({ visible: true }).first().fill('8')
+  await page.getByRole('button', { name: '세트 ✓' }).filter({ visible: true }).first().click()
+  await expect(page.getByRole('timer')).toBeHidden()
+
+  await page.getByRole('button', { name: /^저장/ }).click()
+  await expect(page.getByRole('dialog')).toContainText('저장했습니다')
+})
+
+test('개인정보처리방침 페이지는 공개', async ({ page }) => {
+  await page.goto('/privacy')
+  await expect(page.getByRole('heading', { name: '개인정보처리방침' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible()
+})
+
+test('설정에서 시트 초기화: 기록이 모두 지워진다', async ({ page }) => {
+  page.on('dialog', (d) => void d.accept())
+  // 기록 하나 남기기
+  await page.goto('/')
+  await page.getByRole('button', { name: '기록만 하기' }).click()
+  await page.getByRole('button', { name: '운동 추가' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: /벤치프레스/ }).click()
+  await page.getByRole('button', { name: '세트 ✓' }).filter({ visible: true }).first().click()
+  await page.getByRole('button', { name: /^저장/ }).click()
+  await expect(page.getByRole('dialog')).toContainText('저장했습니다')
+  await page.getByRole('dialog').getByRole('button', { name: '닫기' }).last().click()
+
+  await nav(page, '설정')
+  const reset = page.waitForResponse((r) => r.url().endsWith('/api/sheet/reset'))
+  await page.getByRole('button', { name: '시트 초기화' }).click()
+  expect((await reset).status()).toBe(204)
+
+  await nav(page, '기록')
+  await expect(page.getByText('기록이 없습니다').filter({ visible: true }).first()).toBeVisible()
+})

@@ -18,6 +18,11 @@ const LOCK_WAIT_MS = 10_000
 export const SPREADSHEET_TITLE = 'Workout Log (ex-record)'
 
 export class SheetsAuthError extends Error {}
+/**
+ * 시트가 지워졌다(404). 다른 기기에서 초기화한 경우로, 다시 로그인하면 새 시트로 연결된다.
+ * 그래서 인증 오류와 같게(401) 다룬다.
+ */
+export class SheetsGoneError extends SheetsAuthError {}
 export class SheetsApiError extends Error {
   constructor(
     public status: number,
@@ -43,6 +48,7 @@ async function call<T>(
     cache: 'no-store',
   })
   if (res.status === 401) throw new SheetsAuthError('Google access token rejected')
+  if (res.status === 404) throw new SheetsGoneError('Spreadsheet not found')
   const json = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new SheetsApiError(res.status, json?.error?.message ?? `Google API ${res.status}`)
@@ -323,3 +329,36 @@ export async function ensureSpreadsheet(token: string, fetchFn: typeof fetch = f
   if (file.appProperties?.[SETUP_KEY] === 'pending') await setUpSpreadsheet(fetchFn, token, file.id)
   return file.id
 }
+
+/**
+ * 시트 초기화: 이 앱의 시트를 지우고 기본값으로 새로 만든다.
+ * - 지우기 전에 휴지통에 백업 사본을 남긴다(Drive 휴지통에서 30일 동안 복구 가능).
+ *   사본을 못 만들면 원본도 지우지 않는다.
+ * - 원본은 완전히 삭제한다. 그래야 예전 시트 id를 들고 있는 다른 기기가 404(SheetsGoneError)를
+ *   받아 다시 로그인하게 되고, 휴지통의 시트에 계속 쓰는 일이 없다.
+ * @returns 새 시트 id
+ */
+export async function resetSpreadsheet(
+  token: string,
+  fetchFn: typeof fetch = fetch,
+  now = new Date(),
+): Promise<string> {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  // 동시에 만들어진 시트가 여럿일 수 있으니 모두 정리한다 (무한 반복 방지 상한)
+  for (let i = 0; i < 10; i++) {
+    const file = await findAppSheet(fetchFn, token)
+    if (!file) break
+    await call(fetchFn, token, `${DRIVE}/${file.id}/copy?fields=id`, {
+      method: 'POST',
+      body: {
+        name: `${SPREADSHEET_TITLE} backup ${stamp}`,
+        trashed: true,
+        appProperties: { [APP_KEY]: null, [SETUP_KEY]: null },
+      },
+    })
+    await call(fetchFn, token, `${DRIVE}/${file.id}`, { method: 'DELETE' })
+  }
+  return ensureSpreadsheet(token, fetchFn)
+}
+

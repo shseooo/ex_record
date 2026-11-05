@@ -13,6 +13,7 @@ export const ja: Dict = {
   'login.desc': '記録はGoogleドライブのスプレッドシートに保存されます。アプリは自身が作成したファイルにのみアクセスします。',
   'login.google': 'Googleで始める',
   'login.dev': '開発用ログイン（メモリ保存）',
+  'common.privacy': 'プライバシーポリシー',
 
   'common.save': '保存',
   'common.cancel': 'キャンセル',
@@ -36,6 +37,7 @@ export const ja: Dict = {
   'home.noRoutine': '今日のルーティンはありません。',
   'home.start': '今日のトレーニング開始',
   'home.startEmpty': '空のトレーニングを開始',
+  'home.logOnly': '記録だけする',
   'home.resume': 'トレーニングを再開',
   'home.weekGoal': '今週 {done}/{goal}回',
   'home.streak': '{n}週連続で目標達成',
@@ -45,6 +47,8 @@ export const ja: Dict = {
 
   'workout.title': 'トレーニング中',
   'workout.editTitle': '記録を編集',
+  'workout.logTitle': 'トレーニング記録',
+  'workout.date': '日付',
   'workout.empty': '種目を追加してください。',
   'workout.addExercise': '種目を追加',
   'workout.addSet': 'セット追加',
@@ -86,6 +90,7 @@ export const ja: Dict = {
   'calendar.title': 'カレンダー',
   'calendar.noWorkout': '記録がありません。',
   'calendar.sessionCount': '今月 {n}回',
+  'calendar.addLog': 'この日の記録を追加',
 
   'progress.title': '記録の推移',
   'progress.exercise': '種目',
@@ -148,6 +153,11 @@ export const ja: Dict = {
   'settings.sheet': 'Googleスプレッドシートを開く',
   'settings.exercises': '種目を管理',
   'settings.signOut': 'ログアウト',
+  'settings.resetSheet': 'シートを初期化',
+  'settings.resetHint': 'すべての記録・ルーティン・設定を削除し、新しいシートを作成します。古いシートのバックアップはDriveのゴミ箱に30日間残ります。',
+  'settings.resetConfirm': '本当に初期化しますか？すべての記録が削除されます。（バックアップはDriveのゴミ箱に30日間保管）',
+  'settings.resetDone': '初期化しました。',
+  'settings.resetFailed': '初期化できませんでした。接続を確認して再度お試しください。',
   'settings.vibrationUnsupported': 'この端末/ブラウザは振動に対応していないため、音と画面で通知します。',
 
   'day.0': '日',
@@ -166,8 +176,10 @@ export const ja: Dict = {
   'dayLong.6': '土曜日',
 
   'ex.bench_press': 'ベンチプレス',
+  'ex.db_press': 'ダンベルプレス',
   'ex.incline_db_press': 'インクラインダンベルプレス',
   'ex.push_up': '腕立て伏せ',
+  'ex.dips': 'ディップス',
   'ex.deadlift': 'デッドリフト',
   'ex.barbell_row': 'バーベルロウ',
   'ex.lat_pulldown': 'ラットプルダウン',

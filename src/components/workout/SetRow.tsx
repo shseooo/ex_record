@@ -30,10 +30,10 @@ interface Props {
 const cell =
   'h-11 w-full min-w-0 rounded-lg border border-line bg-surface px-2 text-center text-base tabular outline-none focus:border-accent'
 
-function parseNum(text: string): number | undefined {
+function parseNum(text: string, allowNegative = false): number | undefined {
   if (text.trim() === '') return undefined
-  const n = Number(text.replace(',', '.'))
-  return Number.isFinite(n) && n >= 0 ? n : undefined
+  const n = Number(text.replace(',', '.').replace('−', '-'))
+  return Number.isFinite(n) && (allowNegative || n >= 0) ? n : undefined
 }
 
 /** 입력 중 "62." 같은 중간 상태를 유지하기 위해 로컬 텍스트를 따로 둔다 */
@@ -42,21 +42,24 @@ function NumCell({
   value,
   onValue,
   decimal = true,
+  allowNegative = false,
   done,
 }: {
   label: string
   value: string
   onValue: (n: number | undefined) => void
   decimal?: boolean
+  /** 맨몸 운동의 보조(어시스트) 무게용. 모바일 숫자 키패드에 '-'가 없을 수 있어 ± 버튼을 함께 둔다 */
+  allowNegative?: boolean
   done: boolean
 }) {
   const [text, setText] = useState(value)
   const [prev, setPrev] = useState(value)
   if (value !== prev) {
     setPrev(value)
-    if (parseNum(text) !== parseNum(value)) setText(value)
+    if (parseNum(text, allowNegative) !== parseNum(value, allowNegative)) setText(value)
   }
-  return (
+  const input = (
     <input
       aria-label={label}
       inputMode={decimal ? 'decimal' : 'numeric'}
@@ -64,11 +67,31 @@ function NumCell({
       value={text}
       onChange={(e) => {
         setText(e.target.value)
-        onValue(parseNum(e.target.value))
+        onValue(parseNum(e.target.value, allowNegative))
       }}
       onFocus={(e) => e.target.select()}
-      className={cx(cell, done && 'border-transparent bg-accent-soft')}
+      className={cx(cell, done && 'border-transparent bg-accent-soft', allowNegative && 'pl-8')}
     />
+  )
+  if (!allowNegative) return input
+  return (
+    <div className="relative">
+      {input}
+      <button
+        type="button"
+        aria-label="±"
+        title="±"
+        onClick={() => {
+          const n = parseNum(text, true)
+          const next = n === undefined || n === 0 ? '-' : String(-n)
+          setText(next)
+          onValue(parseNum(next, true))
+        }}
+        className="absolute inset-y-1 left-1 flex w-7 items-center justify-center rounded-md text-sm font-semibold text-ink-3 hover:bg-surface-2"
+      >
+        ±
+      </button>
+    </div>
   )
 }
 
@@ -111,6 +134,7 @@ export function SetRow({ index, set, type, unit, labels, onChange, onToggle, onR
       label={labels.weight}
       value={displayWeight(set.weightKg, unit)}
       onValue={(n) => onChange({ weightKg: n === undefined ? undefined : toKg(n, unit) })}
+      allowNegative={type === 'bodyweight'}
       done={done}
     />
   )

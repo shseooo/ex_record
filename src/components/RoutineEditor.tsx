@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { Exercise, RoutineItem, Weekday, WeightUnit } from '@/lib/domain/types'
-import { copyDay, itemsForDay, reorder } from '@/lib/domain/routine'
+import { copyDay, itemsForDay, normalizeSupersets, reorder, toggleSupersetWithPrev } from '@/lib/domain/routine'
 import { newId } from '@/lib/domain/id'
 import { displayWeight, toKg } from '@/lib/domain/units'
 import type { DictKey, Vars } from '@/lib/i18n'
@@ -56,17 +56,7 @@ export function RoutineEditor({ routine, exercises, initialDay, dayLabels, unit,
       },
     ])
 
-  const toggleSuperset = (idx: number) => {
-    const cur = items[idx]
-    const prev = items[idx - 1]
-    if (!prev) return
-    if (cur.supersetGroup && cur.supersetGroup === prev.supersetGroup) {
-      patch(cur.id, { supersetGroup: undefined })
-    } else {
-      const g = prev.supersetGroup ?? newId()
-      setDraft((d) => d.map((i) => (i.id === prev.id || i.id === cur.id ? { ...i, supersetGroup: g } : i)))
-    }
-  }
+  const toggleSuperset = (id: string) => setDraft((d) => toggleSupersetWithPrev(d, day, id))
 
   return (
     <div className="flex flex-col gap-3">
@@ -112,13 +102,13 @@ export function RoutineEditor({ routine, exercises, initialDay, dayLabels, unit,
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="truncate font-medium">{exName(ex)}</span>
                   <div className="flex shrink-0 items-center">
-                    <button type="button" aria-label={t('common.up')} disabled={idx === 0} className="p-1.5 text-ink-3 disabled:opacity-30" onClick={() => setDraft((d) => reorder(d, day, item.id, -1))}>
+                    <button type="button" aria-label={t('common.up')} disabled={idx === 0} className="p-1.5 text-ink-3 disabled:opacity-30" onClick={() => setDraft((d) => normalizeSupersets(reorder(d, day, item.id, -1), day))}>
                       <Icon name="up" className="size-4" />
                     </button>
-                    <button type="button" aria-label={t('common.down')} disabled={idx === items.length - 1} className="p-1.5 text-ink-3 disabled:opacity-30" onClick={() => setDraft((d) => reorder(d, day, item.id, 1))}>
+                    <button type="button" aria-label={t('common.down')} disabled={idx === items.length - 1} className="p-1.5 text-ink-3 disabled:opacity-30" onClick={() => setDraft((d) => normalizeSupersets(reorder(d, day, item.id, 1), day))}>
                       <Icon name="down" className="size-4" />
                     </button>
-                    <button type="button" aria-label={t('common.delete')} className="p-1.5 text-ink-3" onClick={() => setDraft((d) => d.filter((i) => i.id !== item.id))}>
+                    <button type="button" aria-label={t('common.delete')} className="p-1.5 text-ink-3" onClick={() => setDraft((d) => normalizeSupersets(d.filter((i) => i.id !== item.id), day))}>
                       <Icon name="trash" className="size-4" />
                     </button>
                   </div>
@@ -134,16 +124,19 @@ export function RoutineEditor({ routine, exercises, initialDay, dayLabels, unit,
                       <input aria-label={t('routine.reps')} inputMode="numeric" className={small} value={item.targetReps ?? ''} onChange={(e) => patch(item.id, { targetReps: num(e.target.value) })} />
                     </label>
                   )}
-                  {ex.type === 'weight' && (
+                  {(ex.type === 'weight' || ex.type === 'bodyweight') && (
                     <label className="flex flex-col gap-0.5">
-                      {unit}
+                      {ex.type === 'bodyweight' ? `±${unit}` : unit}
                       <input
                         aria-label={unit}
-                        inputMode="decimal"
+                        // 맨몸 운동은 보조 무게(음수)를 받으므로 '-'가 있는 키보드
+                        inputMode={ex.type === 'bodyweight' ? 'text' : 'decimal'}
+                        placeholder={ex.type === 'bodyweight' ? '0' : undefined}
                         className={small}
                         defaultValue={displayWeight(item.targetWeightKg, unit)}
                         onBlur={(e) => {
-                          const n = num(e.target.value)
+                          const raw = num(e.target.value.replace(',', '.').replace('−', '-'))
+                          const n = ex.type === 'weight' && raw !== undefined && raw < 0 ? undefined : raw
                           patch(item.id, { targetWeightKg: n === undefined ? undefined : toKg(n, unit) })
                         }}
                       />
@@ -162,7 +155,7 @@ export function RoutineEditor({ routine, exercises, initialDay, dayLabels, unit,
                 </div>
                 {idx > 0 && (
                   <label className="mt-2 flex items-center gap-2 text-xs text-ink-2">
-                    <input type="checkbox" checked={linked} onChange={() => toggleSuperset(idx)} className="accent-[var(--accent)]" />
+                    <input type="checkbox" checked={linked} onChange={() => toggleSuperset(item.id)} className="accent-[var(--accent)]" />
                     {t('routine.supersetWithPrev')}
                   </label>
                 )}

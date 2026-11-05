@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 import { useApp, useT } from '@/lib/store/use-app'
 import { itemsForDay } from '@/lib/domain/routine'
 import { lastPerformance } from '@/lib/domain/history'
-import { startWorkout } from '@/lib/domain/workout'
+import { logWorkout, startWorkout } from '@/lib/domain/workout'
 import { countSessionsInWeek, weeklyStreak } from '@/lib/domain/progress'
 import { todayKey } from '@/lib/domain/dates'
 import type { Weekday } from '@/lib/domain/types'
 import { Button, Card, Icon, SectionTitle } from './ui'
 import { SessionCard } from './SessionList'
-import { describeSet } from './workout/WorkoutView'
+import { describeSet } from './workout/describe-set'
 
 export function HomeView() {
   const { t, exName, fmtW } = useT()
@@ -33,6 +33,10 @@ export function HomeView() {
   const start = (empty = false) => {
     const w = startWorkout(data, now)
     setWorkout(empty ? { ...w, items: [] } : w)
+    router.push('/workout')
+  }
+  const logOnly = () => {
+    setWorkout(logWorkout(data, today, now))
     router.push('/workout')
   }
 
@@ -95,6 +99,9 @@ export function HomeView() {
               )}
               <Button size="lg" variant={routine.length > 0 ? 'secondary' : 'primary'} onClick={() => start(true)}>
                 {t('home.startEmpty')}
+              </Button>
+              <Button variant="ghost" onClick={logOnly}>
+                <Icon name="edit" className="size-4" /> {t('home.logOnly')}
               </Button>
             </>
           )}

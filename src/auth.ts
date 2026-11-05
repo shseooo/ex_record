@@ -17,7 +17,7 @@ export const GOOGLE_SCOPES = [
 export const DEV_PROVIDER_ID = 'dev'
 export const DEV_USER_ID = 'dev-user'
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   providers: [
     Google({
       authorization: {
@@ -43,7 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: 'jwt', maxAge: 60 * 60 * 24 * 90 },
   pages: { signIn: '/login' },
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, trigger }) {
       if (account?.provider === DEV_PROVIDER_ID) {
         return { ...token, dev: true }
       }
@@ -64,7 +64,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // 개발 로그인 세션은 메모리 백엔드에서만 유효하다. 아니면 세션을 지운다(null).
       if (token.dev) return isMemoryBackend ? token : null
       if (!hasGoogleToken(token)) return null
-      return ensureFreshToken(token)
+      const fresh = await ensureFreshToken(token)
+      // 시트 초기화 후(unstable_update): 새 시트 id는 서버가 Drive에서 직접 다시 찾는다.
+      // 클라이언트가 보낸 값(session 인자)은 믿지 않으므로 쓰지 않는다.
+      if (trigger === 'update' && !fresh.error) {
+        return { ...fresh, spreadsheetId: await ensureSpreadsheet(fresh.access_token) }
+      }
+      return fresh
     },
     // access/refresh token은 세션(클라이언트)으로 내보내지 않는다
     async session({ session, token }) {

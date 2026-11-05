@@ -50,6 +50,28 @@ describe('SetRow', () => {
     expect(screen.getByLabelText('time')).toHaveValue('25:00')
   })
 
+  it('bodyweight 타입: 음수(보조) 무게 입력 가능', () => {
+    const onChange = vi.fn()
+    render(<SetRow index={0} set={{ id: 'd', reps: 8, isWarmup: false, done: false }} type="bodyweight" unit="kg" labels={labels} onChange={onChange} onToggle={() => {}} onRemove={() => {}} />)
+    fireEvent.change(screen.getByLabelText('weight'), { target: { value: '-20' } })
+    expect(onChange).toHaveBeenLastCalledWith({ weightKg: -20 })
+  })
+
+  it('bodyweight 타입: ± 버튼으로 부호 전환', () => {
+    const onChange = vi.fn()
+    render(<SetRow index={0} set={{ id: 'd', weightKg: 10, reps: 8, isWarmup: false, done: false }} type="bodyweight" unit="kg" labels={labels} onChange={onChange} onToggle={() => {}} onRemove={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '±' }))
+    expect(onChange).toHaveBeenLastCalledWith({ weightKg: -10 })
+  })
+
+  it('weight 타입은 음수를 받지 않는다', () => {
+    const onChange = vi.fn()
+    render(<SetRow index={0} set={base} type="weight" unit="kg" labels={labels} onChange={onChange} onToggle={() => {}} onRemove={() => {}} />)
+    fireEvent.change(screen.getByLabelText('weight'), { target: { value: '-20' } })
+    expect(onChange).toHaveBeenLastCalledWith({ weightKg: undefined })
+    expect(screen.queryByRole('button', { name: '±' })).toBeNull()
+  })
+
   it('완료 버튼과 워밍업 토글', () => {
     const onToggle = vi.fn()
     const onChange = vi.fn()

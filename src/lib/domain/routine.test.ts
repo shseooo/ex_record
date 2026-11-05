@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { itemsForDay, copyDay, reorder } from './routine'
+import { itemsForDay, copyDay, reorder, toggleSupersetWithPrev, normalizeSupersets } from './routine'
 import type { RoutineItem } from './types'
 
 const item = (p: Partial<RoutineItem>): RoutineItem => ({
@@ -55,5 +55,34 @@ describe('routine', () => {
     ])
     // 맨 위에서 위로 이동은 무시
     expect(itemsForDay(reorder(routine, 1, 'b', -1), 1).map((i) => i.id)).toEqual(['b', 'a'])
+  })
+
+  describe('슈퍼세트', () => {
+    const day = (ids: string[], groups: (string | undefined)[] = []): RoutineItem[] =>
+      ids.map((id, i) => item({ id, day: 2, order: i, supersetGroup: groups[i] }))
+    const groups = (r: RoutineItem[]) => itemsForDay(r, 2).map((i) => i.supersetGroup)
+    let n = 0
+    const g = () => `new${n++}`
+
+    it('앞 항목과 묶기', () => {
+      n = 0
+      expect(groups(toggleSupersetWithPrev(day(['a', 'b', 'c']), 2, 'b', g))).toEqual(['new0', 'new0', undefined])
+    })
+    it('해제하면 혼자 남은 앞 항목의 그룹도 지운다', () => {
+      const linked = toggleSupersetWithPrev(day(['a', 'b', 'c']), 2, 'b', g)
+      expect(groups(toggleSupersetWithPrev(linked, 2, 'b', g))).toEqual([undefined, undefined, undefined])
+    })
+    it('3개 묶음 가운데를 끊으면 뒤쪽은 새 그룹으로 이어진다', () => {
+      const r = day(['a', 'b', 'c'], ['g', 'g', 'g'])
+      n = 0
+      expect(groups(toggleSupersetWithPrev(r, 2, 'b', g))).toEqual([undefined, 'new0', 'new0'])
+    })
+    it('normalizeSupersets: 삭제/이동으로 혼자 남거나 떨어진 그룹 정리', () => {
+      expect(groups(normalizeSupersets(day(['a', 'b'], ['g', undefined]), 2))).toEqual([undefined, undefined])
+      expect(groups(normalizeSupersets(day(['a', 'b', 'c'], ['g', undefined, 'g']), 2))).toEqual([undefined, undefined, undefined])
+      // 다른 요일은 건드리지 않는다
+      const other = item({ id: 'z', day: 5, supersetGroup: 'solo' })
+      expect(normalizeSupersets([other], 2)[0].supersetGroup).toBe('solo')
+    })
   })
 })

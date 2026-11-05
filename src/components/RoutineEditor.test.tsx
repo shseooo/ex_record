@@ -6,10 +6,12 @@ import type { Exercise, RoutineItem } from '@/lib/domain/types'
 const exercises: Exercise[] = [
   { id: 'bench', name: 'Bench', type: 'weight', bodyPart: 'chest', defaultRestSec: 90, incrementKg: 2.5, archived: false },
   { id: 'squat', name: 'Squat', type: 'weight', bodyPart: 'legs', defaultRestSec: 180, incrementKg: 5, archived: false },
+  { id: 'dips', name: 'Dips', type: 'bodyweight', bodyPart: 'chest', defaultRestSec: 90, incrementKg: 0, archived: false },
 ]
 const routine: RoutineItem[] = [
   { id: 'r1', day: 1, order: 0, exerciseId: 'bench', targetSets: 3, targetReps: 8 },
   { id: 'r2', day: 1, order: 1, exerciseId: 'squat', targetSets: 5, targetReps: 5 },
+  { id: 'r3', day: 2, order: 0, exerciseId: 'dips', targetSets: 3, targetReps: 10 },
 ]
 const dayLabels = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -69,6 +71,16 @@ describe('RoutineEditor', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'common.delete' }))
     expect(screen.queryByText('Bench')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
-    expect(onSave.mock.calls[0][0].map((i: RoutineItem) => i.id)).toEqual(['r2'])
+    expect(onSave.mock.calls[0][0].map((i: RoutineItem) => i.id)).toEqual(['r2', 'r3'])
+  })
+
+  it('맨몸 운동에도 무게(음수 포함) 입력', () => {
+    const onSave = setup()
+    fireEvent.click(screen.getByRole('radio', { name: '화' }))
+    const w = screen.getByLabelText('kg')
+    fireEvent.change(w, { target: { value: '-15' } })
+    fireEvent.blur(w)
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    expect(onSave.mock.lastCall![0].find((i: RoutineItem) => i.id === 'r3').targetWeightKg).toBe(-15)
   })
 })

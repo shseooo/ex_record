@@ -5,7 +5,7 @@ import { useEffect, useState, useSyncExternalStore, useTransition } from 'react'
 import type { Settings } from '@/lib/domain/types'
 import { LOCALES } from '@/lib/i18n'
 import { canVibrate } from '@/lib/alarm'
-import { clearLocalData, useApp, useSettings, useT } from '@/lib/store/use-app'
+import { appStore, clearLocalData, useApp, useSettings, useT } from '@/lib/store/use-app'
 import { signOutAction } from '@/app/settings/actions'
 import { Button, Card, Field, Icon, PageHeader, Segmented, inputClass } from './ui'
 
@@ -18,13 +18,35 @@ export function SettingsView() {
   const [sheetUrl, setSheetUrl] = useState<string | null>(null)
   const vibrate = useSyncExternalStore(noop, canVibrate, () => true)
   const [signingOut, startSignOut] = useTransition()
+  const [resetting, startReset] = useTransition()
 
-  useEffect(() => {
+  const loadSheetUrl = () =>
     fetch('/api/sheet')
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => setSheetUrl(j?.url ?? null))
       .catch(() => {})
+
+  useEffect(() => {
+    void loadSheetUrl()
   }, [])
+
+  const resetSheet = () => {
+    if (!confirm(t('settings.resetConfirm'))) return
+    startReset(async () => {
+      const ok = await fetch('/api/sheet/reset', { method: 'POST' })
+        .then((r) => r.ok)
+        .catch(() => false)
+      if (!ok) {
+        alert(t('settings.resetFailed'))
+        return
+      }
+      // 전송 대기 중인 변경, 진행 중 운동, 캐시를 모두 버리고 새 시트에서 다시 읽는다
+      appStore.getState().clearLocal()
+      await appStore.getState().refresh()
+      await loadSheetUrl()
+      alert(t('settings.resetDone'))
+    })
+  }
 
   const save = (patch: Partial<Settings>) => void dispatch([{ type: 'setSettings', settings: { ...settings, ...patch } }])
 
@@ -75,6 +97,16 @@ export function SettingsView() {
             {t('settings.sheet')} <Icon name="external" className="size-4 text-ink-3" />
           </a>
         )}
+        <Link href="/privacy" className="flex items-center justify-between px-4 py-3">
+          {t('common.privacy')} <Icon name="right" className="size-4 text-ink-3" />
+        </Link>
+      </Card>
+
+      <Card className="flex flex-col gap-2">
+        <p className="text-xs text-ink-3">{t('settings.resetHint')}</p>
+        <Button type="button" variant="danger" disabled={resetting} onClick={resetSheet}>
+          {t('settings.resetSheet')}
+        </Button>
       </Card>
 
       <Button

@@ -6,7 +6,7 @@ import { workoutFromSession } from '@/lib/domain/workout'
 import { sessionVolume, workingSetCount } from '@/lib/domain/metrics'
 import { formatDuration } from '@/lib/domain/units'
 import { useApp, useT } from '@/lib/store/use-app'
-import { describeSet } from './workout/WorkoutView'
+import { describeSet } from './workout/describe-set'
 import { Button, Icon } from './ui'
 
 export function SessionCard({ session, data, editable = true }: { session: Session; data: UserData; editable?: boolean }) {

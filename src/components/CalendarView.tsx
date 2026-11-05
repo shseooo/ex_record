@@ -1,16 +1,21 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useApp, useT } from '@/lib/store/use-app'
 import { todayKey } from '@/lib/domain/dates'
+import { logWorkout } from '@/lib/domain/workout'
 import { workoutDays } from '@/lib/domain/progress'
 import { MonthCalendar } from './MonthCalendar'
 import { SessionCard } from './SessionList'
-import { Card, PageHeader } from './ui'
+import { Button, Card, Icon, PageHeader } from './ui'
 
 export function CalendarView() {
   const { t } = useT()
   const data = useApp((s) => s.data)
+  const hasActive = useApp((s) => s.workout !== null)
+  const setWorkout = useApp((s) => s.setWorkout)
+  const router = useRouter()
   const today = todayKey()
   const [selected, setSelected] = useState(today)
   const [ym, setYm] = useState(() => ({ y: new Date().getFullYear(), m: new Date().getMonth() }))
@@ -46,6 +51,17 @@ export function CalendarView() {
           </p>
         ) : (
           daySessions.map((s) => <SessionCard key={s.id} session={s} data={data} />)
+        )}
+        {selected <= today && (
+          <Button
+            disabled={hasActive}
+            onClick={() => {
+              setWorkout(logWorkout(data, selected))
+              router.push('/workout')
+            }}
+          >
+            <Icon name="plus" /> {t('calendar.addLog')}
+          </Button>
         )}
       </div>
     </div>

@@ -13,6 +13,7 @@ export const en: Dict = {
   'login.desc': 'Records are saved to a spreadsheet in your Google Drive. The app can only access files it created.',
   'login.google': 'Continue with Google',
   'login.dev': 'Dev sign-in (memory storage)',
+  'common.privacy': 'Privacy Policy',
 
   'common.save': 'Save',
   'common.cancel': 'Cancel',
@@ -36,6 +37,7 @@ export const en: Dict = {
   'home.noRoutine': 'No routine set for today.',
   'home.start': "Start today's workout",
   'home.startEmpty': 'Start empty workout',
+  'home.logOnly': 'Log without timer',
   'home.resume': 'Resume workout',
   'home.weekGoal': 'This week {done}/{goal}',
   'home.streak': '{n}-week goal streak',
@@ -45,6 +47,8 @@ export const en: Dict = {
 
   'workout.title': 'Workout',
   'workout.editTitle': 'Edit workout',
+  'workout.logTitle': 'Log workout',
+  'workout.date': 'Date',
   'workout.empty': 'Add an exercise.',
   'workout.addExercise': 'Add exercise',
   'workout.addSet': 'Add set',
@@ -86,6 +90,7 @@ export const en: Dict = {
   'calendar.title': 'Calendar',
   'calendar.noWorkout': 'No workout recorded.',
   'calendar.sessionCount': '{n} this month',
+  'calendar.addLog': 'Add log for this day',
 
   'progress.title': 'Progress',
   'progress.exercise': 'Exercise',
@@ -148,6 +153,11 @@ export const en: Dict = {
   'settings.sheet': 'Open my Google Sheet',
   'settings.exercises': 'Manage exercises',
   'settings.signOut': 'Sign out',
+  'settings.resetSheet': 'Reset sheet',
+  'settings.resetHint': 'Deletes all workouts, routines and settings and creates a new sheet. A backup copy of the old sheet stays in your Drive trash for 30 days.',
+  'settings.resetConfirm': 'Really reset? All records will be deleted. (A backup copy stays in your Drive trash for 30 days.)',
+  'settings.resetDone': 'Reset complete.',
+  'settings.resetFailed': 'Could not reset. Check your connection and try again.',
   'settings.vibrationUnsupported': 'This device/browser does not support vibration; sound and screen alerts are used instead.',
 
   'day.0': 'Sun',
@@ -166,8 +176,10 @@ export const en: Dict = {
   'dayLong.6': 'Saturday',
 
   'ex.bench_press': 'Bench Press',
+  'ex.db_press': 'Dumbbell Press',
   'ex.incline_db_press': 'Incline Dumbbell Press',
   'ex.push_up': 'Push-up',
+  'ex.dips': 'Dips',
   'ex.deadlift': 'Deadlift',
   'ex.barbell_row': 'Barbell Row',
   'ex.lat_pulldown': 'Lat Pulldown',

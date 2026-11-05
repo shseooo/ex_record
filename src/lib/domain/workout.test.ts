@@ -9,6 +9,8 @@ import {
   finishWorkout,
   restFor,
   workoutFromSession,
+  logWorkout,
+  setWorkoutDate,
 } from './workout'
 import type { Exercise, RoutineItem, SetRecord } from './types'
 
@@ -159,3 +161,40 @@ describe('workoutFromSession: 지난 세션 편집', () => {
     expect(w.items[0].sets.every((s) => s.done)).toBe(true)
   })
 })
+
+describe('logWorkout: 운동 시작 없이 바로 기록', () => {
+  it('고른 날짜의 요일 루틴으로 채우고 log 표시, 시작=종료 시각(소요시간 없음)', () => {
+    // 2026-11-02 월요일 → squat
+    const w = logWorkout({ routine, exercises, sets: history }, '2026-11-02', NOW, gen)
+    expect(w.log).toBe(true)
+    expect(w.date).toBe('2026-11-02')
+    expect(w.items.map((i) => i.exerciseId)).toEqual(['squat'])
+    let done = toggleDone(w, w.items[0].key, w.items[0].sets[0].id)
+    done = updateSet(done, w.items[0].key, w.items[0].sets[0].id, { weightKg: 100, reps: 5 })
+    const { session, sets } = finishWorkout(done, NOW)
+    expect(session.date).toBe('2026-11-02')
+    expect(session.startedAt).toBe(session.endedAt)
+    expect(sets[0].date).toBe('2026-11-02')
+  })
+
+  it('그 날짜 이후의 기록은 "지난 기록"으로 쓰지 않는다', () => {
+    const w = logWorkout({ routine, exercises, sets: history }, '2026-10-22', NOW, gen) // 목요일
+    expect(w.items[0].last).toBeUndefined()
+    expect(w.items[0].sets.map((s) => s.weightKg)).toEqual([60, 60, 60])
+  })
+
+  it('setWorkoutDate: 날짜를 바꾸면 기록 날짜도 바뀐다', () => {
+    const w = setWorkoutDate(logWorkout({ routine, exercises, sets: [] }, '2026-11-05', NOW, gen), '2026-11-01', NOW)
+    expect(w.date).toBe('2026-11-01')
+    expect(w.startedAt.startsWith('2026-11-01') || new Date(w.startedAt).getDate() === 1).toBe(true)
+  })
+})
+
+describe('편집 저장', () => {
+  it('지난 세션을 편집해 저장해도 원래 종료 시각을 유지한다', () => {
+    const session = { id: 'old', date: '2026-10-29', startedAt: '2026-10-29T10:00:00.000Z', endedAt: '2026-10-29T11:00:00.000Z', note: '' }
+    const w = workoutFromSession(session, history, exercises, gen)
+    expect(finishWorkout(w, NOW).session.endedAt).toBe('2026-10-29T11:00:00.000Z')
+  })
+})
+

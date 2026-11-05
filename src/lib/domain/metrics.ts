@@ -8,7 +8,8 @@ export function estimate1RM(weight: number, reps: number): number {
 }
 
 export function setVolume(set: SetRecord): number {
-  if (set.isWarmup || !set.weightKg || !set.reps) return 0
+  // 음수(보조 무게)는 볼륨에 넣지 않는다
+  if (set.isWarmup || !set.weightKg || set.weightKg < 0 || !set.reps) return 0
   return set.weightKg * set.reps
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Op } from './ops'
-import { SheetsRepository, ensureSpreadsheet, SheetsAuthError, LOCK_TITLE, type Clock } from './sheets'
+import { SheetsRepository, ensureSpreadsheet, resetSpreadsheet, SheetsAuthError, SheetsGoneError, LOCK_TITLE, type Clock } from './sheets'
 import { encodeTab, encodeSettings, TAB_NAMES } from './codec'
 import { DEFAULT_SETTINGS } from '@/lib/domain/types'
 
@@ -52,6 +52,13 @@ describe('SheetsRepository.load', () => {
     expect(data.settings.locale).toBe('ja')
   })
 
+  it('시트가 삭제됐으면(404) SheetsGoneError: 다시 로그인하면 새 시트로 연결된다', async () => {
+    const { fn } = fakeFetch(() => ({ status: 404, json: { error: { message: 'not found' } } }))
+    const err = await new SheetsRepository('tok', 'id', fn).load().catch((e) => e)
+    expect(err).toBeInstanceOf(SheetsGoneError)
+    expect(err).toBeInstanceOf(SheetsAuthError)
+  })
+
   it('401이면 SheetsAuthError', async () => {
     const { fn } = fakeFetch(() => ({ status: 401, json: { error: { message: 'bad' } } }))
     await expect(new SheetsRepository('tok', 'id', fn).load()).rejects.toBeInstanceOf(SheetsAuthError)
@@ -60,7 +67,7 @@ describe('SheetsRepository.load', () => {
 
 type Row = (string | number | boolean)[]
 type SheetProps = { sheetId: number; title: string }
-type DriveFile = { id: string; createdTime: number; trashed?: boolean; appProperties: Record<string, string> }
+type DriveFile = { id: string; createdTime: number; trashed?: boolean; appProperties: Record<string, string>; name?: string }
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
@@ -75,6 +82,7 @@ function fakeGoogle(opts: { fail?: (call: Call) => number | undefined } = {}) {
   const files: DriveFile[] = []
   const calls: Call[] = []
   let nextId = 1
+  let fileSeq = 0
   let created = 0
 
   const addTab = (title: string, rows: Row[] = [], sheetId = nextId++) => {
@@ -95,8 +103,24 @@ function fakeGoogle(opts: { fail?: (call: Call) => number | undefined } = {}) {
           .sort((a, b) => a.createdTime - b.createdTime)
         return { json: { files: live.slice(0, 1).map(({ id, appProperties }) => ({ id, appProperties })) } }
       }
+      if (call.method === 'POST' && path.endsWith('/copy')) {
+        const src = files.find((f) => path.endsWith(`/${f.id}/copy`))!
+        const id = `file${(fileSeq = Math.max(files.length, fileSeq) + 1)}`
+        const props: Record<string, string> = { ...src.appProperties }
+        for (const [k, v] of Object.entries((body!.appProperties ?? {}) as Record<string, string | null>)) {
+          if (v === null) delete props[k]
+          else props[k] = v
+        }
+        files.push({ id, createdTime: created++, trashed: !!body!.trashed, appProperties: props, name: body!.name as string })
+        return { json: { id } }
+      }
+      if (call.method === 'DELETE') {
+        const i = files.findIndex((f) => path.endsWith(`/${f.id}`))
+        files.splice(i, 1)
+        return { json: {} }
+      }
       if (call.method === 'POST') {
-        const id = `file${files.length + 1}`
+        const id = `file${(fileSeq = Math.max(files.length, fileSeq) + 1)}`
         files.push({ id, createdTime: created++, appProperties: { ...(body!.appProperties as Record<string, string>) } })
         addTab('Sheet1')
         return { json: { id } }
@@ -354,3 +378,31 @@ describe('ensureSpreadsheet', () => {
     expect(g.files.find((f) => f.id === 'file2')?.trashed).toBe(true)
   })
 })
+
+describe('resetSpreadsheet', () => {
+  it('기존 시트는 휴지통에 백업 사본을 남기고 삭제한 뒤, 기본값으로 새로 만든다', async () => {
+    const g = fakeGoogle()
+    g.files.push({ id: 'old', createdTime: -1, appProperties: { exRecordApp: 'v1' } })
+
+    const id = await resetSpreadsheet('tok', g.fn, new Date(2026, 10, 5))
+
+    expect(id).not.toBe('old')
+    expect(g.files.find((f) => f.id === 'old')).toBeUndefined()
+    const backup = g.files.find((f) => f.name?.includes('backup'))!
+    expect(backup.trashed).toBe(true)
+    expect(backup.name).toContain('2026-11-05')
+    expect(backup.appProperties.exRecordApp).toBeUndefined() // 앱 시트로 다시 잡히지 않게
+    const live = g.files.filter((f) => !f.trashed)
+    expect(live.map((f) => f.id)).toEqual([id])
+    expect(live[0].appProperties).toEqual({ exRecordApp: 'v1' })
+    expect(g.tabs.get('exercises')!.length).toBeGreaterThan(10)
+  })
+
+  it('백업 사본을 못 만들면 원본을 지우지 않는다', async () => {
+    const g = fakeGoogle({ fail: (c) => (c.url.includes('/copy') ? 500 : undefined) })
+    g.files.push({ id: 'old', createdTime: -1, appProperties: { exRecordApp: 'v1' } })
+    await expect(resetSpreadsheet('tok', g.fn)).rejects.toThrow()
+    expect(g.files.map((f) => f.id)).toEqual(['old'])
+  })
+})
+

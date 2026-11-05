@@ -7,7 +7,7 @@ import { AppShell } from './AppShell'
 
 export function ClientRoot({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  if (pathname.startsWith('/login')) return <>{children}</>
+  if (pathname.startsWith('/login') || pathname.startsWith('/privacy')) return <>{children}</>
   return (
     <AppProvider>
       <AppShell>{children}</AppShell>

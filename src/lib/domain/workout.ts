@@ -1,4 +1,4 @@
-import { toDateKey } from './dates'
+import { parseDateKey, toDateKey } from './dates'
 import { lastPerformance, type LastPerformance } from './history'
 import { newId } from './id'
 import { itemsForDay } from './routine'
@@ -32,6 +32,10 @@ export interface ActiveWorkout {
   note: string
   /** 이미 저장된 세션을 고치는 중 */
   editing?: boolean
+  /** 운동 시작 없이 바로 기록 (타이머/소요시간 없음, 날짜 선택 가능) */
+  log?: boolean
+  /** 편집 시 원래 종료 시각 유지용 */
+  endedAt?: string
   items: WorkoutItem[]
 }
 
@@ -99,6 +103,40 @@ export function startWorkout(
   }
 }
 
+/** 바로 기록용 시작 시각: 오늘이면 지금, 아니면 그 날 정오 */
+function logStartedAt(date: string, now: Date): string {
+  if (date === toDateKey(now)) return now.toISOString()
+  const d = parseDateKey(date)
+  d.setHours(12)
+  return d.toISOString()
+}
+
+/** 운동 시작 없이 바로 기록. 고른 날짜의 요일 루틴으로 채우되, 그 날짜 이후 기록은 참고하지 않는다. */
+export function logWorkout(
+  data: { routine: RoutineItem[]; exercises: Exercise[]; sets: SetRecord[] },
+  date: string,
+  now = new Date(),
+  gen: Gen = newId,
+): ActiveWorkout {
+  const active = new Set(data.exercises.filter((e) => !e.archived).map((e) => e.id))
+  const history = data.sets.filter((s) => s.date <= date)
+  const items = itemsForDay(data.routine, parseDateKey(date).getDay() as Weekday).filter((r) =>
+    active.has(r.exerciseId),
+  )
+  return {
+    sessionId: gen(),
+    date,
+    startedAt: logStartedAt(date, now),
+    note: '',
+    log: true,
+    items: items.map((r) => buildItem(r.exerciseId, history, gen, r)),
+  }
+}
+
+export function setWorkoutDate(w: ActiveWorkout, date: string, now = new Date()): ActiveWorkout {
+  return { ...w, date, ...(w.log ? { startedAt: logStartedAt(date, now) } : {}) }
+}
+
 export function workoutFromSession(
   session: Session,
   sets: SetRecord[],
@@ -113,6 +151,7 @@ export function workoutFromSession(
     sessionId: session.id,
     date: session.date,
     startedAt: session.startedAt,
+    endedAt: session.endedAt,
     note: session.note,
     editing: true,
     items: order
@@ -209,7 +248,7 @@ export function finishWorkout(
     id: w.sessionId,
     date: w.date,
     startedAt: w.startedAt,
-    endedAt: now.toISOString(),
+    endedAt: w.log ? w.startedAt : (w.endedAt ?? now.toISOString()),
     note,
   }
   const sets: SetRecord[] = []
