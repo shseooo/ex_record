@@ -5,6 +5,7 @@ import { useStore } from 'zustand'
 import { createBrowserStore, type AppState } from './app-store'
 import { translate, exerciseName, type DictKey, type Vars } from '@/lib/i18n'
 import { DEFAULT_SETTINGS, type Exercise, type Settings } from '@/lib/domain/types'
+export { bodyWeightOps } from '@/lib/data/ops'
 import { formatVolume, formatWeight } from '@/lib/domain/units'
 
 export const appStore = createBrowserStore()

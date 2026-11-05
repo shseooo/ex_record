@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useApp, useT } from '@/lib/store/use-app'
+import { bodyWeightOps, useApp, useT } from '@/lib/store/use-app'
 import { itemsForDay } from '@/lib/domain/routine'
 import { lastPerformance } from '@/lib/domain/history'
 import { logWorkout, startWorkout } from '@/lib/domain/workout'
@@ -12,9 +12,11 @@ import type { Weekday } from '@/lib/domain/types'
 import { Button, Card, Icon, SectionTitle } from './ui'
 import { SessionCard } from './SessionList'
 import { SetSummary } from './SetSummary'
+import { BodyWeightEditor } from './BodyWeightEditor'
 
 export function HomeView() {
-  const { t, exName } = useT()
+  const { t, exName, unit } = useT()
+  const dispatch = useApp((s) => s.dispatch)
   const router = useRouter()
   const data = useApp((s) => s.data)
   const workout = useApp((s) => s.workout)
@@ -117,6 +119,19 @@ export function HomeView() {
             </>
           )}
         </div>
+      </Card>
+
+      <Card>
+        <SectionTitle>{t('progress.bodyWeight')}</SectionTitle>
+        <BodyWeightEditor
+          variant="quick"
+          entries={data.bodyWeights}
+          unit={unit}
+          today={today}
+          t={t}
+          onSave={(entry, prev) => void dispatch(bodyWeightOps(entry, prev))}
+          onDelete={(date) => void dispatch([{ type: 'deleteBodyWeight', date }])}
+        />
       </Card>
 
       {recent.length > 0 && (

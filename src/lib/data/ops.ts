@@ -164,3 +164,9 @@ export function isOp(value: unknown): value is Op {
 export function isOpArray(value: unknown): value is Op[] {
   return Array.isArray(value) && value.every(isOp)
 }
+
+/** 체중 저장. 편집 중 날짜를 바꿨으면 원래 날짜 기록을 지우고 새 날짜로 옮긴다. */
+export function bodyWeightOps(entry: BodyWeightEntry, previousDate?: string): Op[] {
+  const upsert: Op = { type: 'upsertBodyWeight', entry }
+  return previousDate && previousDate !== entry.date ? [{ type: 'deleteBodyWeight', date: previousDate }, upsert] : [upsert]
+}

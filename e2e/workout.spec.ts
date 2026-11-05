@@ -162,3 +162,29 @@ test('유산소: 시작/정지 버튼으로 시간 기록', async ({ page }, inf
   await page.getByRole('button', { name: /운동 완료/ }).click()
   await expect(page.getByRole('dialog')).toContainText('저장했습니다')
 })
+
+test('체중: 홈에서 오늘 체중 저장, 기록 탭에서 수정', async ({ page }, info) => {
+  page.on('dialog', (d) => void d.accept())
+  await page.goto('/')
+  const today = page.getByLabel('오늘 체중').filter({ visible: true })
+  await today.fill('72.4')
+  await today.press('Enter')
+  await expect(today).toHaveValue('72.4')
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/bw-home-${info.project.name}.png` })
+
+  await nav(page, '기록')
+  const row = page.getByRole('listitem').filter({ hasText: '72.4' }).filter({ visible: true }).first()
+  await expect(row).toBeVisible()
+  await row.getByRole('button', { name: '편집' }).click()
+  const weight = page.getByLabel('체중', { exact: true }).filter({ visible: true })
+  await expect(weight).toHaveValue('72.4')
+  await weight.fill('72.9')
+  await page.getByRole('button', { name: '저장' }).filter({ visible: true }).last().click()
+  await expect(page.getByRole('listitem').filter({ hasText: '72.9' }).filter({ visible: true })).toHaveCount(1)
+  await expect(page.getByRole('listitem').filter({ hasText: '72.4' }).filter({ visible: true })).toHaveCount(0)
+  if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/bw-progress-${info.project.name}.png`, fullPage: true })
+
+  // 홈에도 수정된 값
+  await nav(page, '홈')
+  await expect(page.getByLabel('오늘 체중').filter({ visible: true })).toHaveValue('72.9')
+})

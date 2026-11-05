@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyOps, changedTabs, emptyData, isOpArray, type Op } from './ops'
+import { applyOps, bodyWeightOps, changedTabs, emptyData, isOpArray, type Op } from './ops'
 import type { Session, SetRecord } from '@/lib/domain/types'
 
 const session = (id: string, date = '2026-11-01'): Session => ({
@@ -110,3 +110,16 @@ describe('isOpArray', () => {
     expect(isOpArray([op])).toBe(false)
   })
 })
+
+describe('bodyWeightOps: 체중 저장/수정', () => {
+  const base = applyOps(emptyData(), [{ type: 'upsertBodyWeight', entry: { date: '2026-11-03', weightKg: 72.5 } }])
+  it('같은 날짜면 값만 수정', () => {
+    const next = applyOps(base, bodyWeightOps({ date: '2026-11-03', weightKg: 72.8 }, '2026-11-03'))
+    expect(next.bodyWeights).toEqual([{ date: '2026-11-03', weightKg: 72.8 }])
+  })
+  it('날짜를 바꾸면 원래 날짜 기록은 지우고 옮긴다', () => {
+    const next = applyOps(base, bodyWeightOps({ date: '2026-11-02', weightKg: 72.5 }, '2026-11-03'))
+    expect(next.bodyWeights).toEqual([{ date: '2026-11-02', weightKg: 72.5 }])
+  })
+})
+

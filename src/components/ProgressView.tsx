@@ -1,12 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useApp, useT } from '@/lib/store/use-app'
+import { bodyWeightOps, useApp, useT } from '@/lib/store/use-app'
 import { addDays, todayKey, type Granularity } from '@/lib/domain/dates'
 import { bodyPartDistribution, progressSeries, volumeSeries } from '@/lib/domain/progress'
-import { fromKg, formatDuration, round1, toKg } from '@/lib/domain/units'
+import { fromKg, formatDuration, round1 } from '@/lib/domain/units'
 import type { Exercise } from '@/lib/domain/types'
-import { Button, Card, PageHeader, SectionTitle, Segmented, inputClass } from './ui'
+import { Card, PageHeader, SectionTitle, Segmented, inputClass } from './ui'
+import { BodyWeightEditor } from './BodyWeightEditor'
 import { HBarList, SimpleBarChart, TrendLineChart } from './charts/Charts'
 
 const RANGE: Record<Granularity, number | null> = { day: 90, week: 7 * 26, month: 31 * 24, year: null }
@@ -17,7 +18,6 @@ export function ProgressView() {
   const dispatch = useApp((s) => s.dispatch)
   const [g, setG] = useState<Granularity>('week')
   const [exerciseId, setExerciseId] = useState<string | null>(null)
-  const [bw, setBw] = useState('')
 
   const today = todayKey()
   const from = RANGE[g] === null ? undefined : addDays(today, -RANGE[g]!)
@@ -160,22 +160,8 @@ export function ProgressView() {
 
       <Card>
         <SectionTitle>{t('progress.bodyWeight')}</SectionTitle>
-        <form
-          className="mb-3 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            const n = Number(bw)
-            if (!n || n <= 0) return
-            void dispatch([{ type: 'upsertBodyWeight', entry: { date: today, weightKg: toKg(n, unit) } }])
-            setBw('')
-          }}
-        >
-          <input className={inputClass} inputMode="decimal" placeholder={`${today} (${unit})`} value={bw} onChange={(e) => setBw(e.target.value)} aria-label={t('progress.addBodyWeight')} />
-          <Button type="submit" variant="primary">
-            {t('common.save')}
-          </Button>
-        </form>
-        {bwData.length > 0 && (
+        {bwData.length > 1 && (
+          <div className="mb-3">
           <TrendLineChart
             data={bwData}
             series={[{ key: 'weight', label: t('progress.bodyWeight'), color: 'var(--series-1)' }]}
@@ -183,7 +169,17 @@ export function ProgressView() {
             labelFormat={(k) => k.slice(5).replace('-', '/')}
             height={180}
           />
+          </div>
         )}
+        <BodyWeightEditor
+          variant="full"
+          entries={data.bodyWeights}
+          unit={unit}
+          today={today}
+          t={t}
+          onSave={(entry, prev) => void dispatch(bodyWeightOps(entry, prev))}
+          onDelete={(date) => void dispatch([{ type: 'deleteBodyWeight', date }])}
+        />
       </Card>
     </div>
   )
