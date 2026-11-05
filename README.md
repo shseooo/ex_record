@@ -44,7 +44,7 @@ npm install
 npm run dev
 ```
 
-Google 없이 UI만 확인하려면 `.env.local`에 `DATA_BACKEND=memory`를 넣습니다. 로그인을 건너뛰고 메모리 저장소를 쓰며, Vercel production 환경에서는 무시됩니다.
+Google 없이 UI만 확인하려면 `.env.local`에 `DATA_BACKEND=memory`를 넣습니다. 로그인을 건너뛰고 메모리 저장소를 쓰며, Vercel production 환경에서는 무시되고, production 빌드(`next start`)에서는 `ALLOW_MEMORY_BACKEND_IN_PRODUCTION=1`도 함께 줘야 켜집니다.
 
 ## 테스트 (TDD)
 

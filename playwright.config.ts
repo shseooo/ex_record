@@ -18,6 +18,11 @@ export default defineConfig({
     url: `http://localhost:${PORT}/login`,
     timeout: 180_000,
     reuseExistingServer: false,
-    env: { DATA_BACKEND: 'memory', AUTH_SECRET: 'e2e-secret-e2e-secret-e2e-secret-00' },
+    env: {
+      DATA_BACKEND: 'memory',
+      // next start는 NODE_ENV=production이므로 메모리 백엔드를 명시적으로 허용
+      ALLOW_MEMORY_BACKEND_IN_PRODUCTION: '1',
+      AUTH_SECRET: 'e2e-secret-e2e-secret-e2e-secret-00',
+    },
   },
 })
