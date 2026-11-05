@@ -158,6 +158,7 @@ export const ja: Dict = {
   'settings.resetConfirm': '本当に初期化しますか？すべての記録が削除されます。（バックアップはDriveのゴミ箱に30日間保管）',
   'settings.resetDone': '初期化しました。',
   'settings.resetFailed': '初期化できませんでした。接続を確認して再度お試しください。',
+  'settings.resetError': '初期化中にエラーが発生しました。',
   'settings.vibrationUnsupported': 'この端末/ブラウザは振動に対応していないため、音と画面で通知します。',
 
   'day.0': '日',

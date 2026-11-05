@@ -158,6 +158,7 @@ export const en: Dict = {
   'settings.resetConfirm': 'Really reset? All records will be deleted. (A backup copy stays in your Drive trash for 30 days.)',
   'settings.resetDone': 'Reset complete.',
   'settings.resetFailed': 'Could not reset. Check your connection and try again.',
+  'settings.resetError': 'Reset failed.',
   'settings.vibrationUnsupported': 'This device/browser does not support vibration; sound and screen alerts are used instead.',
 
   'day.0': 'Sun',

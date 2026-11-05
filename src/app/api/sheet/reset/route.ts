@@ -1,4 +1,4 @@
-import { resetSpreadsheet } from '@/lib/data/sheets'
+import { resetSpreadsheet, SheetResetError } from '@/lib/data/sheets'
 import { isMemoryBackend } from '@/lib/server/backend'
 import { errorResponse, withCookies } from '@/lib/server/http'
 import { requireSession, resetMemoryRepo, UnauthorizedError } from '@/lib/server/repo'
@@ -19,9 +19,18 @@ export async function POST(req: Request) {
     // jwt 콜백(trigger: 'update')이 Drive에서 새 시트를 직접 찾아 쿠키에 넣는다.
     // 갱신된 쿠키는 unstable_update가 직접 붙이므로 위 setCookies는 쓰지 않는다.
     const { unstable_update } = await import('@/auth')
-    await unstable_update({})
+    try {
+      await unstable_update({})
+    } catch (e) {
+      throw new SheetResetError('session', e)
+    }
     return new Response(null, { status: 204 })
   } catch (e) {
+    if (e instanceof SheetResetError) {
+      // 본인 시트 작업의 실패 단계와 Google 오류 메시지만 돌려준다 (토큰 등은 포함하지 않음)
+      console.error(e, e.cause)
+      return Response.json({ error: 'upstream', step: e.step, message: e.message }, { status: 502 })
+    }
     return errorResponse(e)
   }
 }

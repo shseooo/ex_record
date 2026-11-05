@@ -156,6 +156,7 @@ export const ko = {
   'settings.resetConfirm': '정말 초기화할까요? 모든 기록이 삭제되고 되돌릴 수 없습니다. (백업 사본은 Drive 휴지통에 30일간 보관)',
   'settings.resetDone': '초기화했습니다.',
   'settings.resetFailed': '초기화하지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.',
+  'settings.resetError': '초기화 중 오류가 났습니다.',
   'settings.vibrationUnsupported': '이 기기/브라우저는 진동을 지원하지 않아 소리와 화면으로 알립니다.',
 
   'day.0': '일',

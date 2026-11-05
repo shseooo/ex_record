@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Op } from './ops'
-import { SheetsRepository, ensureSpreadsheet, resetSpreadsheet, SheetsAuthError, SheetsGoneError, LOCK_TITLE, type Clock } from './sheets'
+import { SheetsRepository, ensureSpreadsheet, resetSpreadsheet, SheetResetError, SheetsAuthError, SheetsGoneError, LOCK_TITLE, type Clock } from './sheets'
 import { encodeTab, encodeSettings, TAB_NAMES } from './codec'
 import { DEFAULT_SETTINGS } from '@/lib/domain/types'
 
@@ -111,7 +111,7 @@ function fakeGoogle(opts: { fail?: (call: Call) => number | undefined } = {}) {
           if (v === null) delete props[k]
           else props[k] = v
         }
-        files.push({ id, createdTime: created++, trashed: !!body!.trashed, appProperties: props, name: body!.name as string })
+        files.push({ id, createdTime: created++, appProperties: props, name: body!.name as string })
         return { json: { id } }
       }
       if (call.method === 'DELETE') {
@@ -398,11 +398,21 @@ describe('resetSpreadsheet', () => {
     expect(g.tabs.get('exercises')!.length).toBeGreaterThan(10)
   })
 
-  it('백업 사본을 못 만들면 원본을 지우지 않는다', async () => {
-    const g = fakeGoogle({ fail: (c) => (c.url.includes('/copy') ? 500 : undefined) })
+  it('백업 사본을 못 만들면 원본을 지우지 않고, 실패 단계를 알려준다', async () => {
+    const g = fakeGoogle({ fail: (c) => (c.url.includes('/copy') ? 403 : undefined) })
     g.files.push({ id: 'old', createdTime: -1, appProperties: { exRecordApp: 'v1' } })
-    await expect(resetSpreadsheet('tok', g.fn)).rejects.toThrow()
+    const err = await resetSpreadsheet('tok', g.fn).catch((e) => e)
+    expect(err).toBeInstanceOf(SheetResetError)
+    expect(err.step).toBe('backup')
     expect(g.files.map((f) => f.id)).toEqual(['old'])
+  })
+
+  it('copy 요청 본문에는 name만 보낸다 (휴지통 이동은 PATCH로)', async () => {
+    const g = fakeGoogle()
+    g.files.push({ id: 'old', createdTime: -1, appProperties: { exRecordApp: 'v1' } })
+    await resetSpreadsheet('tok', g.fn)
+    const copy = g.calls.find((c) => c.url.includes('/copy'))!
+    expect(Object.keys(copy.body as object)).toEqual(['name'])
   })
 })
 

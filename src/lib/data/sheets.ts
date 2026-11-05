@@ -330,6 +330,25 @@ export async function ensureSpreadsheet(token: string, fetchFn: typeof fetch = f
   return file.id
 }
 
+/** 초기화 중 어느 단계에서 실패했는지 남긴다 (인증 오류는 그대로 둬서 401로 처리되게) */
+export class SheetResetError extends Error {
+  constructor(
+    public step: string,
+    public cause: unknown,
+  ) {
+    super(`sheet reset failed at ${step}: ${cause instanceof Error ? cause.message : String(cause)}`)
+  }
+}
+
+async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof SheetsAuthError) throw e
+    throw new SheetResetError(name, e)
+  }
+}
+
 /**
  * 시트 초기화: 이 앱의 시트를 지우고 기본값으로 새로 만든다.
  * - 지우기 전에 휴지통에 백업 사본을 남긴다(Drive 휴지통에서 30일 동안 복구 가능).
@@ -349,16 +368,21 @@ export async function resetSpreadsheet(
   for (let i = 0; i < 10; i++) {
     const file = await findAppSheet(fetchFn, token)
     if (!file) break
-    await call(fetchFn, token, `${DRIVE}/${file.id}/copy?fields=id`, {
-      method: 'POST',
-      body: {
-        name: `${SPREADSHEET_TITLE} backup ${stamp}`,
-        trashed: true,
-        appProperties: { [APP_KEY]: null, [SETUP_KEY]: null },
-      },
-    })
-    await call(fetchFn, token, `${DRIVE}/${file.id}`, { method: 'DELETE' })
+    // copy 본문에는 문서화된 name만 넣고, 휴지통 이동/표시 제거는 update(PATCH)로 따로 한다
+    const backup = await step('backup', () =>
+      call<{ id: string }>(fetchFn, token, `${DRIVE}/${file.id}/copy?fields=id`, {
+        method: 'POST',
+        body: { name: `${SPREADSHEET_TITLE} backup ${stamp}` },
+      }),
+    )
+    await step('trashBackup', () =>
+      call(fetchFn, token, `${DRIVE}/${backup.id}`, {
+        method: 'PATCH',
+        body: { trashed: true, appProperties: { [APP_KEY]: null, [SETUP_KEY]: null } },
+      }),
+    )
+    await step('delete', () => call(fetchFn, token, `${DRIVE}/${file.id}`, { method: 'DELETE' }))
   }
-  return ensureSpreadsheet(token, fetchFn)
+  return step('create', () => ensureSpreadsheet(token, fetchFn))
 }
 

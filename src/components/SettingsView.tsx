@@ -33,11 +33,11 @@ export function SettingsView() {
   const resetSheet = () => {
     if (!confirm(t('settings.resetConfirm'))) return
     startReset(async () => {
-      const ok = await fetch('/api/sheet/reset', { method: 'POST' })
-        .then((r) => r.ok)
-        .catch(() => false)
-      if (!ok) {
-        alert(t('settings.resetFailed'))
+      const res = await fetch('/api/sheet/reset', { method: 'POST' }).catch(() => null)
+      if (!res?.ok) {
+        // 네트워크 실패만 "네트워크 확인", 서버가 응답한 실패는 원인을 함께 보여준다
+        const detail = res ? ((await res.json().catch(() => null))?.message ?? `HTTP ${res.status}`) : ''
+        alert(res ? `${t('settings.resetError')}\n${detail}` : t('settings.resetFailed'))
         return
       }
       // 전송 대기 중인 변경, 진행 중 운동, 캐시를 모두 버리고 새 시트에서 다시 읽는다
