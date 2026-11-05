@@ -97,20 +97,13 @@ async function writeTabs(
   })
 }
 
-/** RAW 쓰기와 같은 값이 되도록: 문자열은 문자열 그대로, 빈 문자열은 빈 셀 */
-function toCellData(v: string | number) {
-  if (v === '') return {}
-  return { userEnteredValue: typeof v === 'number' ? { numberValue: v } : { stringValue: v } }
-}
-
-function appendCells(sheetId: number, rows: (string | number)[][]) {
-  return {
-    appendCells: {
-      sheetId,
-      rows: rows.map((r) => ({ values: r.map(toCellData) })),
-      fields: 'userEnteredValue',
-    },
-  }
+/** id 열(A2부터)에서 마지막으로 값이 있는 행의 다음 행 번호. 중간의 빈 행은 그대로 두고 그 뒤부터 쓴다. */
+function nextRow(ids: string[]): number {
+  let last = -1
+  ids.forEach((id, i) => {
+    if (id !== '') last = i
+  })
+  return last + 3 // A2가 0번째이므로 마지막 행 번호(last + 2)의 다음
 }
 
 function decodeAll(rows: Record<TabName, RawRows>): UserData {
@@ -245,9 +238,13 @@ export class SheetsRepository implements Repository {
   }
 
   /**
-   * ops가 모두 "시트에 아직 없는 세션 저장"이면 행 추가 한 번(원자적)으로 끝내고 true.
+   * ops가 모두 "시트에 아직 없는 세션 저장"이면 세션·세트 행을 쓰기 한 번(원자적)으로 끝내고 true.
    * 세션 id가 이미 있으면(수정, 또는 응답이 유실돼 다시 보낸 op) false → 전체 경로가 덮어써
    * 중복 행이 생기지 않는다.
+   *
+   * 쓸 위치는 id 열에서 "마지막으로 값이 있는 행" 바로 다음으로 직접 정한다. Google의 append
+   * (appendCells 등)는 전체 쓰기 때 빈 문자열로 지운 행도 사용 중으로 보고 그 아래에 붙여
+   * 중간에 빈 행이 생겼다.
    */
   private async tryAppendNewSessions(ops: Op[]): Promise<boolean> {
     if (ops.length === 0) return false
@@ -256,39 +253,33 @@ export class SheetsRepository implements Repository {
     const ids = upserts.map((o) => o.session.id)
     if (new Set(ids).size !== ids.length) return false
 
-    const [sheetIds, existing] = await Promise.all([this.sheetIds(), this.firstColumn('sessions')])
+    const [sessionIds, setIds] = await this.idColumns(['sessions', 'sets'])
+    const existing = new Set(sessionIds.filter(Boolean))
     if (ids.some((id) => existing.has(id))) return false
-    const sessionsSheet = sheetIds.get('sessions')
-    const setsSheet = sheetIds.get('sets')
-    if (sessionsSheet === undefined || setsSheet === undefined) return false
 
     const sessionRows = encodeTab('sessions', upserts.map((o) => o.session)).slice(1)
     const setRows = encodeTab('sets', upserts.flatMap((o) => o.sets)).slice(1)
-    const requests = [
-      appendCells(sessionsSheet, sessionRows),
-      ...(setRows.length > 0 ? [appendCells(setsSheet, setRows)] : []),
+    const data = [
+      { range: `sessions!A${nextRow(sessionIds)}`, values: sessionRows },
+      ...(setRows.length > 0 ? [{ range: `sets!A${nextRow(setIds)}`, values: setRows }] : []),
     ]
-    await call(this.fetchFn, this.token, this.url(':batchUpdate'), { method: 'POST', body: { requests } })
+    await call(this.fetchFn, this.token, `${SHEETS}/${this.spreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      body: { valueInputOption: 'RAW', data },
+    })
     return true
   }
 
-  private async sheetIds(): Promise<Map<string, number>> {
-    const meta = await call<{ sheets?: { properties: { sheetId: number; title: string } }[] }>(
+  /** 탭별 id 열(A2부터) 값. 세트 탭 전체가 아니라 한 열만이라 작다. 빈 행은 ''. */
+  private async idColumns(tabs: TabName[]): Promise<string[][]> {
+    const params = new URLSearchParams({ valueRenderOption: 'UNFORMATTED_VALUE' })
+    for (const tab of tabs) params.append('ranges', `${tab}!A2:A`)
+    const res = await call<{ valueRanges: { values?: RawRows }[] }>(
       this.fetchFn,
       this.token,
-      this.url(`?${new URLSearchParams({ fields: 'sheets.properties(sheetId,title)' })}`),
+      `${SHEETS}/${this.spreadsheetId}/values:batchGet?${params}`,
     )
-    return new Map((meta.sheets ?? []).map((s) => [s.properties.title, s.properties.sheetId]))
-  }
-
-  /** 탭의 첫 열(id) 값들. 세트 탭과 달리 세션 탭은 운동 횟수만큼만 커서 작다. */
-  private async firstColumn(tab: TabName): Promise<Set<string>> {
-    const res = await call<{ values?: RawRows }>(
-      this.fetchFn,
-      this.token,
-      this.url(`/values/${encodeURIComponent(`${tab}!A2:A`)}?valueRenderOption=UNFORMATTED_VALUE`),
-    )
-    return new Set((res.values ?? []).map((r) => String(r[0] ?? '')).filter(Boolean))
+    return tabs.map((_, i) => (res.valueRanges[i]?.values ?? []).map((r) => String(r?.[0] ?? '')))
   }
 
   /**

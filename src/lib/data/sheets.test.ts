@@ -140,9 +140,11 @@ function fakeGoogle(opts: { fail?: (call: Call) => number | undefined } = {}) {
     }
     if (path.endsWith('/values:batchUpdate')) {
       for (const d of body!.data as { range: string; values: Row[] }[]) {
-        const t = d.range.split('!')[0]
+        const [t, a1] = d.range.split('!')
+        const start = Number(a1?.match(/\d+/)?.[0] ?? 1) - 1
         const rows = [...(tabs.get(t) ?? [])]
-        d.values.forEach((r, i) => (rows[i] = r))
+        for (let i = rows.length; i < start; i++) rows[i] = []
+        d.values.forEach((r, i) => (rows[start + i] = r))
         const trimmed = rows.map((r) => r.filter((_, i) => r.slice(i).some((c) => c !== '')))
         while (trimmed.length && trimmed.at(-1)!.length === 0) trimmed.pop()
         tabs.set(t, trimmed)
@@ -308,11 +310,10 @@ describe('SheetsRepository.apply', () => {
           ? 'read'
           : c.url.includes('values:batchUpdate')
             ? 'write'
-            : c.method === 'GET'
-              ? 'check' // 새 세션인지 확인(시트 id 목록, 세션 id 열)
-              : 'unlock',
+            : 'unlock',
     )
-    expect(order).toEqual(['lock', 'check', 'check', 'read', 'write', 'unlock'])
+    // 첫 read = 새 세션인지 확인(세션·세트 id 열), 둘째 read = 전체 읽기(수정이라 전체 경로)
+    expect(order).toEqual(['lock', 'read', 'read', 'write', 'unlock'])
     expect(g.sheets.some((x) => x.title === LOCK_TITLE)).toBe(false)
   })
 
@@ -365,16 +366,21 @@ describe('SheetsRepository.apply: 새 운동은 행 추가만', () => {
     return g
   }
 
-  it('전체 탭을 읽거나 다시 쓰지 않고, 세션·세트 행을 한 요청으로 붙인 뒤 null을 돌려준다', async () => {
+  const fullReads = (g: ReturnType<typeof fakeGoogle>) =>
+    g.calls.filter((c) => c.url.includes('values:batchGet') && new URL(c.url).searchParams.getAll('ranges').length === TAB_NAMES.length)
+
+  it('전체 탭을 읽거나 다시 쓰지 않고, id 열만 읽은 뒤 세션·세트 행을 한 요청으로 쓰고 null을 돌려준다', async () => {
     const g = withHeaders()
     g.tabs.set('sessions', sessionRows)
     const repo = new SheetsRepository('tok', 'sid', g.fn, fakeClock())
     expect(await repo.apply([withSets('s2')])).toBeNull()
 
-    expect(g.calls.some((c) => c.url.includes('values:batchGet'))).toBe(false)
-    expect(g.calls.some((c) => c.url.includes('values:batchUpdate'))).toBe(false)
-    const appends = g.calls.filter((c) => JSON.stringify(c.body ?? '').includes('"appendCells"'))
-    expect(appends).toHaveLength(1) // 세션+세트를 원자적으로 함께
+    expect(fullReads(g)).toHaveLength(0)
+    const check = g.calls.find((c) => c.url.includes('values:batchGet'))!
+    expect(new URL(check.url).searchParams.getAll('ranges')).toEqual(['sessions!A2:A', 'sets!A2:A'])
+    const writes = g.calls.filter((c) => c.url.includes('values:batchUpdate'))
+    expect(writes).toHaveLength(1) // 세션+세트를 원자적으로 함께
+    expect((writes[0].body as { data: { range: string }[] }).data.map((d) => d.range)).toEqual(['sessions!A3', 'sets!A2'])
     expect(g.sheets.some((x) => x.title === LOCK_TITLE)).toBe(false)
 
     const data = await repo.load()
@@ -383,6 +389,18 @@ describe('SheetsRepository.apply: 새 운동은 행 추가만', () => {
       ['s2-1', 60, 10, true],
       ['s2-2', 60, 10, false],
     ])
+  })
+
+  it('지워져 비어 있는 행이 있으면 마지막 데이터 바로 다음부터 채운다 (빈 행 아래에 붙지 않음)', async () => {
+    const g = withHeaders()
+    const blank5 = ['', '', '', '', '']
+    g.tabs.set('sessions', [...sessionRows, blank5, blank5])
+    const blank11 = Array(11).fill('')
+    g.tabs.set('sets', [encodeTab('sets', [])[0], blank11, blank11, blank11])
+    await new SheetsRepository('tok', 'sid', g.fn, fakeClock()).apply([withSets('s2')])
+    expect(g.tabs.get('sessions')![2][0]).toBe('s2') // 헤더, s1 다음 바로
+    expect(g.tabs.get('sets')![1][0]).toBe('s2-1')
+    expect(g.tabs.get('sets')![2][0]).toBe('s2-2')
   })
 
   it('같은 op를 다시 보내도(응답 유실 후 재전송) 행이 중복되지 않는다', async () => {
@@ -415,7 +433,7 @@ describe('SheetsRepository.apply: 새 운동은 행 추가만', () => {
   })
 
   it('행 추가가 실패하면 아무것도 붙지 않고 잠금은 풀린다', async () => {
-    const g = withHeaders({ fail: (c) => (JSON.stringify(c.body ?? '').includes('"appendCells"') ? 503 : undefined) })
+    const g = withHeaders({ fail: (c) => (c.url.includes('values:batchUpdate') ? 503 : undefined) })
     await expect(new SheetsRepository('tok', 'sid', g.fn, fakeClock()).apply([withSets('s2')])).rejects.toThrow()
     expect(g.tabs.get('sets')).toEqual([encodeTab('sets', [])[0]])
     expect(g.sheets.some((x) => x.title === LOCK_TITLE)).toBe(false)
